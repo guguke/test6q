@@ -126,11 +126,33 @@ struct spi_imx_data {
 static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 {									\
 	unsigned int val = readl(spi_imx->base + MXC_CSPIRXDATA);	\
-									\
+	void *p;								\
+	int c;								\
+	if(spi_imx->slave){						\
+		c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+		if(c<4080){						\
+			p = (void*)spi_imx->rxbuf;					\
+			p += spi_imx->rxin;					\
+			*(type*)p = val;					\
+			spi_imx->rxin += sizeof(type);				\
+			c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+			if(c>=252){															\
+				complete(&spi_imx->xfer_done);								\
+			}																\
+		}							\
+		else{							\
+			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
+			spi_imx->rxin = 0;							\
+			spi_imx->rxout = 0;							\
+			printk("    rx overflow , slave %d \n",spi_imx->slave);		\
+		}							\
+	}								\
+	else{								\
 	if (spi_imx->rx_buf) {						\
 		*(type *)spi_imx->rx_buf = val;				\
 		spi_imx->rx_buf += sizeof(type);			\
 	}								\
+	}												\
 }
 
 #define MXC_SPI_BUF_TX(type)						\
@@ -652,9 +674,33 @@ static void spi_imx_push(struct spi_imx_data *spi_imx)
 	spi_imx->devtype_data.trigger(spi_imx);
 }
 
+static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+
+	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
+	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
+	while (spi_imx->devtype_data.rx_available(spi_imx)) {
+		spi_imx->rx(spi_imx);
+	}
+
+		spi_imx->devtype_data.intctrl(
+				spi_imx, MXC_INT_RR);
+		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
+
+	//if( spi_imx->slave == 0 ) spi_imx->devtype_data.intctrl(spi_imx, 0);
+	//printk("   isr: %d   complete    done  \n",spi_imx->slave);
+	//complete(&spi_imx->xfer_done);
+
+	return IRQ_HANDLED;
+}
 static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
+
+	if(spi_imx->slave){
+		return spi_imx_isr_slave(irq,dev_id);
+	}
 
 	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
