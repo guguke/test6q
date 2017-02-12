@@ -129,13 +129,13 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	void *p;								\
 	int c;								\
 	if(spi_imx->slave){						\
-		c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
 		if(c<4080){						\
 			p = (void*)spi_imx->rxbuf;					\
 			p += spi_imx->rxin;					\
 			*(type*)p = val;					\
 			spi_imx->rxin += sizeof(type);				\
-			c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+			c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
 			if(c>=252){															\
 				complete(&spi_imx->xfer_done);								\
 			}																\
@@ -775,6 +775,8 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
+	int c;
+	void *p;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
@@ -791,9 +793,21 @@ static int spi_imx_transfer(struct spi_device *spi,
 
 	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 
+	for(;;){
 	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
 	wait_for_completion_interruptible(&spi_imx->xfer_done);
 	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
+	if(spi_imx->slave){
+		c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);
+		if(c<transfer->len)continue;			
+			p = (void*)spi_imx->rxbuf;					
+			p += spi_imx->rxout;
+			memcpy(spi_imx->rx_buf,p,transfer->len);					
+			spi_imx->rxout = 0x0ffff & (spi_imx->rxout + transfer->len);				
+			//c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+	}
+	else break;
+	}
 	clk_disable(spi_imx->clk);
 
 	return transfer->len;
