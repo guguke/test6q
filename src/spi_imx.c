@@ -97,7 +97,30 @@ struct spi_imx_data {
 	unsigned int txfifo; /* number of words pushed in tx FIFO */
 
 	struct spi_imx_devtype_data devtype_data;
+	int slave;
+	int rxbuf[1024];
+	int rxin;
+	int rxout;
+	int rxcount;
 };
+#if 0
+	void *p;								\
+	int c;								\
+	if(spi_imx->slave){						\
+		c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+		if(c<4080){						\
+			p = (void*)spi_imx->rxbuf;					\
+			p += spi_imx->rxin;					\
+			*(type*)p = val;					\
+			spi_imx->rxin += sizeof(type);				\
+		}							\
+		else{							\
+			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
+			printk("    rx overflow , slave %d \n",spi_imx->slave);		\
+		}							\
+	}								\
+
+#endif
 
 #define MXC_SPI_BUF_RX(type)						\
 static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
@@ -245,6 +268,7 @@ static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 
 	reg = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 	reg |= SPI_IMX2_3_CTRL_XCH;
+        //printk("   spidev(trigger) ctrl reg: 0x%08X\n",reg);
 	writel(reg, spi_imx->base + SPI_IMX2_3_CTRL);
 }
 
@@ -252,6 +276,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 		struct spi_imx_config *config)
 {
 	u32 ctrl = SPI_IMX2_3_CTRL_ENABLE, cfg = 0;
+        //ctrl |= 0x00010000;
 
 	/*
 	 * The hardware seems to have a race condition when changing modes. The
@@ -260,7 +285,12 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	 * the same time.
 	 * So set master mode for all channels as we do not support slave mode.
 	 */
-	ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
+	//if(config->cs==0) spi_imx->slave=0;
+	//else spi_imx->slave = 1;
+        //printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
+	//printk("  cs cs : %d ********************** \n",config->cs);
+	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
+	if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
 	/* set clock speed */
 	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz);
@@ -270,7 +300,9 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 
 	ctrl |= (config->bpw - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
-	cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
+	//printk("  cs cs : %d ********************** \n",config->cs);
+	//if(config->cs==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
+	if(spi_imx->slave==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
 
 	if (config->mode & SPI_CPHA)
 		cfg |= SPI_IMX2_3_CONFIG_SCLKPHA(config->cs);
@@ -281,6 +313,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	if (config->mode & SPI_CS_HIGH)
 		cfg |= SPI_IMX2_3_CONFIG_SSBPOL(config->cs);
 
+        //printk("   spidev ctrl reg: 0x%08X\n",ctrl);
 	writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 	writel(cfg, spi_imx->base + SPI_IMX2_3_CONFIG);
 
@@ -607,8 +640,10 @@ static void spi_imx_chipselect(struct spi_device *spi, int is_active)
 
 static void spi_imx_push(struct spi_imx_data *spi_imx)
 {
+	//printk("  func push : txfifo: %d     fifosize: %d \n",   spi_imx->txfifo, spi_imx->devtype_data.fifosize);
 	while (spi_imx->txfifo < spi_imx->devtype_data.fifosize) {
-		if (!spi_imx->count)
+		//if (!spi_imx->count)
+		if (spi_imx->count<1)
 			break;
 		spi_imx->tx(spi_imx);
 		spi_imx->txfifo++;
@@ -621,26 +656,34 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 
+	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
+	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	while (spi_imx->devtype_data.rx_available(spi_imx)) {
 		spi_imx->rx(spi_imx);
-		spi_imx->txfifo--;
+		//printk("  isr: %d         rx ==>   spi_imx->txfifo : %d ********************** \n",spi_imx->slave,spi_imx->txfifo);
+		if(spi_imx->txfifo) spi_imx->txfifo--;
 	}
 
+	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	if (spi_imx->count) {
 		spi_imx_push(spi_imx);
 		return IRQ_HANDLED;
 	}
 
+	//printk("   isr: %d     spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 	if (spi_imx->txfifo) {
 		/* No data left to push, but still waiting for rx data,
 		 * enable receive data available interrupt.
 		 */
 		spi_imx->devtype_data.intctrl(
 				spi_imx, MXC_INT_RR);
+		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 		return IRQ_HANDLED;
 	}
 
+	//if( spi_imx->slave == 0 ) spi_imx->devtype_data.intctrl(spi_imx, 0);
 	spi_imx->devtype_data.intctrl(spi_imx, 0);
+	//printk("   isr: %d   complete    done  \n",spi_imx->slave);
 	complete(&spi_imx->xfer_done);
 
 	return IRQ_HANDLED;
@@ -687,6 +730,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
 	clk_enable(spi_imx->clk);
 	spi_imx->tx_buf = transfer->tx_buf;
@@ -694,13 +738,16 @@ static int spi_imx_transfer(struct spi_device *spi,
 	spi_imx->count = transfer->len;
 	spi_imx->txfifo = 0;
 
+	//printk("   transfer : %d   init      done  \n",spi_imx->slave);
 	init_completion(&spi_imx->xfer_done);
 
 	spi_imx_push(spi_imx);
 
 	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 
-	wait_for_completion(&spi_imx->xfer_done);
+	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
+	wait_for_completion_interruptible(&spi_imx->xfer_done);
+	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 	clk_disable(spi_imx->clk);
 
 	return transfer->len;
@@ -789,11 +836,17 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, master);
 
 	master->bus_num = pdev->id;
+	printk(" spi bus num:%d ===============\n",master->bus_num);
 	master->num_chipselect = mxc_platform_info->num_chipselect;
 
 	spi_imx = spi_master_get_devdata(master);
 	spi_imx->bitbang.master = spi_master_get(master);
 	spi_imx->chipselect = mxc_platform_info->chipselect;
+	spi_imx->rxcount=0;
+	spi_imx->rxin=0;
+	spi_imx->rxout=0;
+	if(master->bus_num==1) spi_imx->slave = 1;
+	else spi_imx->slave=0;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
@@ -817,6 +870,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->bitbang.master->cleanup = spi_imx_cleanup;
 	spi_imx->bitbang.master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;
 
+	//printk("   probe : %d   init      done  \n",spi_imx->slave);
 	init_completion(&spi_imx->xfer_done);
 
 	spi_imx->devtype_data =

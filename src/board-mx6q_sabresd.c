@@ -129,6 +129,7 @@
 
 #define SABRESD_CAN1_STBY	IMX_GPIO_NR(4, 5)
 #define SABRESD_ECSPI1_CS0  IMX_GPIO_NR(4, 9)
+#define SABRESD_ECSPI1_CS3  IMX_GPIO_NR(4, 12)
 #define SABRESD_CODEC_PWR_EN	IMX_GPIO_NR(4, 10)
 #define SABRESD_HDMI_CEC_IN	IMX_GPIO_NR(4, 11)
 #define SABRESD_PCIE_DIS_B	IMX_GPIO_NR(4, 14)
@@ -320,13 +321,22 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabresd_spi_cs[] = {
-	//SABRESD_ECSPI1_CS0,
+	SABRESD_ECSPI1_CS0,
+};
+static int mx6q_sabresd_spi2_cs[] = {
+	SABRESD_ECSPI1_CS3,
     SABRESD_ECSPI2_CS1,
 };
 
 static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi_cs),
+        .master_mode=1,
+};
+static const struct spi_imx_master mx6q_sabresd_spi2_data __initconst = {
+	.chipselect     = mx6q_sabresd_spi2_cs,
+	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi2_cs),
+        .master_mode=0,
 };
 
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
@@ -360,24 +370,27 @@ static struct mcp251x_platform_data mcp251x_info = {
 #endif
 
 static struct spi_board_info imx6_sabresd_spi_nor_device[] __initdata = {
+#if 0
 #if defined(CONFIG_MTD_M25P80)
 	{
 		.modalias = "m25p80",
 		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
 		.bus_num = 0,
-		.chip_select = 0,
+		.chip_select = 1,
 		.platform_data = &imx6_sabresd__spi_flash_data,
 	},
+#endif
 #endif
 #if defined(CONFIG_SPI_SPIDEV)
 	{
 		.modalias = "spidev",
 		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
-		.bus_num = 1,    //设备挂载第几号spi总线上
+		.bus_num = 0,    //设备挂载第几号spi总线上
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
     },
 #endif
+#if 0
 #if defined(CONFIG_CAN_MCP251X)
 	{
 		.modalias = "mcp2515",
@@ -385,9 +398,21 @@ static struct spi_board_info imx6_sabresd_spi_nor_device[] __initdata = {
 		.irq = gpio_to_irq(CAN_IRQGPIO),
 		.max_speed_hz = 10000000,
 		.bus_num = 1,
-		.chip_select = 0,
+		.chip_select = 1,
 		.mode = SPI_MODE_0,
 	},
+#endif
+#endif
+};
+static struct spi_board_info imx6_sabresd_spi_nor_device1[] __initdata = {
+#if defined(CONFIG_SPI_SPIDEV)
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
+		.bus_num = 1,    //设备挂载第几号spi总线上
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+    },
 #endif
 };
 
@@ -395,6 +420,8 @@ static void spi_device_init(void)
 {
 	spi_register_board_info(imx6_sabresd_spi_nor_device,
 				ARRAY_SIZE(imx6_sabresd_spi_nor_device));
+	spi_register_board_info(imx6_sabresd_spi_nor_device1,
+				ARRAY_SIZE(imx6_sabresd_spi_nor_device1));
 }
 
 static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
@@ -1896,11 +1923,11 @@ static void __init mx6_sabresd_board_init(void)
 		mx6q_sabresd_init_pfuze100(SABRESD_PFUZE_INT);
 	}
 	/* SPI */
-	//imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
+	imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
 	//spi_device_init();
 
 	/* SPI-2 */
-	imx6q_add_ecspi(1, &mx6q_sabresd_spi_data);
+	imx6q_add_ecspi(1, &mx6q_sabresd_spi2_data);
 	spi_device_init();
 
 	imx6q_add_mxc_hdmi(&hdmi_data);

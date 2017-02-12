@@ -20,6 +20,7 @@
 struct spi_imx_master {
 	int	*chipselect;
 	int	num_chipselect;
+        int	master_mode;
 };
 
 #define MXC_SPI_CS(no)	((no) - 32)
