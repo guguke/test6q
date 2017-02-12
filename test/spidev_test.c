@@ -35,12 +35,14 @@ static uint8_t bits = 32;
 static uint32_t speed = 2000000;
 static uint32_t zz = 252;// tx size
 static uint32_t ll = 1;// tx size
-static uint16_t delay;
+static uint16_t delay=0;
+static uint16_t delayms=0;
 
 static void transfer(int fd)
 {
 	int ret;
 	uint8_t tx[1000];//
+	int i;
 #if 0
  = {
 		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
@@ -73,6 +75,10 @@ static void transfer(int fd)
 		.speed_hz = speed,
 		.bits_per_word = bits,
 	};
+	for(i=0;i<256;i++){
+		tx[i]=i;
+		rx[i]=0x0f;
+	}
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1)
@@ -80,6 +86,7 @@ static void transfer(int fd)
 
 	//for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
 	for (ret = 0; ret < zz; ret++) {
+		if(ret!=0 && ret!=zz-1)continue;
 		if (!(ret % 6))
 			puts("");
 		printf("%.2X ", rx[ret]);
@@ -121,11 +128,12 @@ static void parse_opts(int argc, char *argv[])
 			{ "no-cs",   0, 0, 'N' },
 			{ "ready",   0, 0, 'R' },
 			{ "size",     1, 0, 'z' },
+			{ "times",     1, 0, 't' },
 			{ NULL, 0, 0, 0 },
 		};
 		int c;
 
-		c = getopt_long(argc, argv, "D:s:d:b:lHOLC3NRz", lopts, NULL);
+		c = getopt_long(argc, argv, "D:s:d:b:z:t:lHOLC3NR", lopts, NULL);
 
 		if (c == -1)
 			break;
@@ -139,12 +147,16 @@ static void parse_opts(int argc, char *argv[])
 			if(zz>950)zz=900;
 			break;
 		case 's':
-			zz = atoi(optarg);
-			//speed = atoi(optarg);
+			//zz = atoi(optarg);
+			speed = atoi(optarg);
 			break;
-		case 'd':
+		case 't':
 			ll = atoi(optarg);
 			//delay = atoi(optarg);
+			break;
+		case 'd':
+			//ll = atoi(optarg);
+			delayms = atoi(optarg);
 			break;
 		case 'b':
 			bits = atoi(optarg);
@@ -231,8 +243,11 @@ int main(int argc, char *argv[])
 	printf("bits per word: %d\n", bits);
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
-	for(i=0;i<ll;i++)
+	for(i=0;i<ll;i++){
+		if(delayms!=0) usleep(delayms*1000);
 	transfer(fd);
+		printf(" loop(1..... : %d\n",i+1);
+	}
 
 	close(fd);
 
