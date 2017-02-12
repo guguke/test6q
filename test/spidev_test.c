@@ -33,25 +33,42 @@ static const char *device = "/dev/spidev1.1";
 static uint8_t mode;
 static uint8_t bits = 8;
 static uint32_t speed = 500000;
+static uint32_t zz = 8;// tx size
+static uint32_t ll = 1;// tx size
 static uint16_t delay;
 
 static void transfer(int fd)
 {
 	int ret;
-	uint8_t tx[] = {
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0x40, 0x00, 0x00, 0x00, 0x00, 0x95,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD,
-		0xF0, 0x0D,
+	uint8_t tx[1000];//
+#if 0
+ = {
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+//		0x40, 0x00, 0x00, 0x00, 0x00, 0x95,
+//		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+//		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+//		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+//		0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD,
+//		0xF0, 0x0D,
 	};
-	uint8_t rx[ARRAY_SIZE(tx)] = {0, };
+#endif
+	//uint8_t rx[ARRAY_SIZE(tx)] = {0, };
+	uint8_t rx[1000];
 	struct spi_ioc_transfer tr = {
 		.tx_buf = (unsigned long)tx,
 		.rx_buf = (unsigned long)rx,
-		.len = ARRAY_SIZE(tx),
+		.len = zz,//ARRAY_SIZE(tx),
 		.delay_usecs = delay,
 		.speed_hz = speed,
 		.bits_per_word = bits,
@@ -61,7 +78,8 @@ static void transfer(int fd)
 	if (ret < 1)
 		pabort("can't send spi message");
 
-	for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
+	//for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
+	for (ret = 0; ret < zz; ret++) {
 		if (!(ret % 6))
 			puts("");
 		printf("%.2X ", rx[ret]);
@@ -77,6 +95,7 @@ static void print_usage(const char *prog)
 	     "  -d --delay    delay (usec)\n"
 	     "  -b --bpw      bits per word \n"
 	     "  -l --loop     loopback\n"
+	     "  -z --size     tx size bytes(default:4)\n"
 	     "  -H --cpha     clock phase\n"
 	     "  -O --cpol     clock polarity\n"
 	     "  -L --lsb      least significant bit first\n"
@@ -101,11 +120,12 @@ static void parse_opts(int argc, char *argv[])
 			{ "3wire",   0, 0, '3' },
 			{ "no-cs",   0, 0, 'N' },
 			{ "ready",   0, 0, 'R' },
+			{ "size",     1, 0, 'z' },
 			{ NULL, 0, 0, 0 },
 		};
 		int c;
 
-		c = getopt_long(argc, argv, "D:s:d:b:lHOLC3NR", lopts, NULL);
+		c = getopt_long(argc, argv, "D:s:d:b:lHOLC3NRz", lopts, NULL);
 
 		if (c == -1)
 			break;
@@ -114,16 +134,24 @@ static void parse_opts(int argc, char *argv[])
 		case 'D':
 			device = optarg;
 			break;
+		case 'z':
+			zz = atoi(optarg);
+			if(zz>950)zz=900;
+			break;
 		case 's':
-			speed = atoi(optarg);
+			zz = atoi(optarg);
+			//speed = atoi(optarg);
 			break;
 		case 'd':
-			delay = atoi(optarg);
+			ll = atoi(optarg);
+			//delay = atoi(optarg);
 			break;
 		case 'b':
 			bits = atoi(optarg);
 			break;
 		case 'l':
+			//ll = atoi(optarg);
+			
 			mode |= SPI_LOOP;
 			break;
 		case 'H':
@@ -158,6 +186,7 @@ int main(int argc, char *argv[])
 {
 	int ret = 0;
 	int fd;
+	int i;
 
 	parse_opts(argc, argv);
 
@@ -202,6 +231,7 @@ int main(int argc, char *argv[])
 	printf("bits per word: %d\n", bits);
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
+	for(i=0;i<ll;i++)
 	transfer(fd);
 
 	close(fd);
