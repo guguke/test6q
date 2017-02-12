@@ -804,7 +804,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 			p += spi_imx->rxout;
 			memcpy(spi_imx->rx_buf,p,transfer->len);					
 			spi_imx->rxout = 0x0ffff & (spi_imx->rxout + transfer->len);				
-			//c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);			\
+			//c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);
 	}
 	else break;
 	}
