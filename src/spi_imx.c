@@ -102,6 +102,7 @@ struct spi_imx_data {
 	int rxin;
 	int rxout;
 	int rxcount;
+	int disable;
 };
 #if 0
 	void *p;								\
@@ -120,6 +121,9 @@ struct spi_imx_data {
 		}							\
 	}								\
 
+		printk(" rx_type 1  c:%d\n",c);				\
+			printk(" rx_type 2  c:%d   0x%08x\n",c,val);			\
+	
 #endif
 
 #define MXC_SPI_BUF_RX(type)						\
@@ -129,22 +133,25 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	void *p;								\
 	int c;								\
 	if(spi_imx->slave){						\
+		if(spi_imx->disable==0){				\
 		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
-		if(c<4080){						\
+		if(c<3600){						\
 			p = (void*)spi_imx->rxbuf;					\
 			p += spi_imx->rxin;					\
 			*(type*)p = val;					\
-			spi_imx->rxin += sizeof(type);				\
+			spi_imx->rxin = 0x0fff & ( spi_imx->rxin +  sizeof(type));				\
 			c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
 			if(c>=252){															\
 				complete(&spi_imx->xfer_done);								\
 			}																\
 		}							\
 		else{							\
+			spi_imx->disable = 1;				\
 			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
 			spi_imx->rxin = 0;							\
 			spi_imx->rxout = 0;							\
 			printk("    rx overflow , slave %d \n",spi_imx->slave);		\
+		}							\
 		}							\
 	}								\
 	else{								\
@@ -775,8 +782,9 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
-	int c;
+	int c,c1;
 	void *p;
+	int *pi;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
@@ -787,28 +795,65 @@ static int spi_imx_transfer(struct spi_device *spi,
 	spi_imx->txfifo = 0;
 
 	//printk("   transfer : %d   init      done  \n",spi_imx->slave);
-	init_completion(&spi_imx->xfer_done);
+	//init_completion(&spi_imx->xfer_done);
 
 	spi_imx_push(spi_imx);
 
 	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 
+	spi_imx->disable = 0;
+	if(spi_imx->slave){
+		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);
+		printk("   wait 1- c: %d \n",c);
+		if(c>=transfer->len){			
+			p = (void*)spi_imx->rxbuf;					
+			p += spi_imx->rxout;
+			c1 = spi_imx->rxout + transfer->len;
+			pi = (int*)spi_imx->rxbuf;					
+			pi += spi_imx->rxout>>2;
+			printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
+			if(c1<0x1000){
+			memcpy(spi_imx->rx_buf,p,transfer->len);					
+			}
+			else{
+			memcpy(spi_imx->rx_buf,p,0x1000 - spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf+0x1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - 0x1000 + spi_imx->rxout);					
+			}
+			spi_imx->rxout = 0x0fff & (spi_imx->rxout + transfer->len);				
+			return transfer->len;
+		}
+	}
 	for(;;){
+	init_completion(&spi_imx->xfer_done);
 	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
 	wait_for_completion_interruptible(&spi_imx->xfer_done);
 	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 	if(spi_imx->slave){
-		c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);
+		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);
+		printk("   wait  c: %d \n",c);
 		if(c<transfer->len)continue;			
 			p = (void*)spi_imx->rxbuf;					
 			p += spi_imx->rxout;
+			c1 = spi_imx->rxout + transfer->len;
+			pi = (int*)spi_imx->rxbuf;					
+			pi += spi_imx->rxout>>2;
+			printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
+			if(c1<0x1000){
 			memcpy(spi_imx->rx_buf,p,transfer->len);					
-			spi_imx->rxout = 0x0ffff & (spi_imx->rxout + transfer->len);				
-			//c = 0x0ffff & ( 0x10000 + spi_imx->rxin - spi_imx->rxout);
+			}
+			else{
+			memcpy(spi_imx->rx_buf,p,0x1000 - spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf+0x1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - 0x1000 + spi_imx->rxout);					
+			}
+			spi_imx->rxout = 0x0fff & (spi_imx->rxout + transfer->len);				
+			break;
 	}
-	else break;
+	else{
+		clk_disable(spi_imx->clk);
+		break;
 	}
-	clk_disable(spi_imx->clk);
+	}
+	//clk_disable(spi_imx->clk);
 
 	return transfer->len;
 }
@@ -907,6 +952,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->rxout=0;
 	if(master->bus_num==1) spi_imx->slave = 1;
 	else spi_imx->slave=0;
+	spi_imx->disable = 1;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
