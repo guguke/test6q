@@ -97,12 +97,15 @@ struct spi_imx_data {
 	unsigned int txfifo; /* number of words pushed in tx FIFO */
 
 	struct spi_imx_devtype_data devtype_data;
+	// slave mode
 	int slave;
 	int rxbuf[1024];
 	int rxin;
 	int rxout;
 	int rxcount;
 	int disable;
+	int speed_now;
+	int bpw_now;
 };
 #if 0
 	void *p;								\
@@ -748,7 +751,6 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	struct spi_imx_config config;
 
-	clk_enable(spi_imx->clk);
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
 	config.mode = spi->mode;
@@ -774,6 +776,14 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 	} else
 		BUG();
 
+	if(spi_imx->slave==1 
+		&& spi_imx->disable==0 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw==config.bpw) return 0;
+
+	clk_enable(spi_imx->clk);
+	spi_imx->disable = 1;
+	spi_imx->speed_now = config.speed_hz;
+	spi_imx->bpw = config.bpw;
+	
 	spi_imx->devtype_data.config(spi_imx, &config);
 	clk_disable(spi_imx->clk);
 	return 0;
@@ -788,7 +798,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
-	clk_enable(spi_imx->clk);
+	if(spi_imx->slave==0) clk_enable(spi_imx->clk);
 	spi_imx->tx_buf = transfer->tx_buf;
 	spi_imx->rx_buf = transfer->rx_buf;
 	spi_imx->count = transfer->len;
@@ -848,7 +858,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 			spi_imx->rxout = 0x0fff & (spi_imx->rxout + transfer->len);				
 			break;
 	}
-	else{
+	else{  // master mode
 		clk_disable(spi_imx->clk);
 		break;
 	}
@@ -953,6 +963,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	if(master->bus_num==1) spi_imx->slave = 1;
 	else spi_imx->slave=0;
 	spi_imx->disable = 1;
+	spi_imx->speed_now = -1;
+	spi_imx->bpw_now = -1;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
