@@ -777,13 +777,13 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		BUG();
 
 	if(spi_imx->slave==1 
-		&& spi_imx->disable==0 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw==config.bpw) return 0;
+		&& spi_imx->disable==0 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw) return 0;
 
 	clk_enable(spi_imx->clk);
 	spi_imx->disable = 1;
 	spi_imx->speed_now = config.speed_hz;
-	spi_imx->bpw = config.bpw;
-	
+	spi_imx->bpw_now = config.bpw;
+
 	spi_imx->devtype_data.config(spi_imx, &config);
 	clk_disable(spi_imx->clk);
 	return 0;
