@@ -56,6 +56,7 @@ struct spi_imx_config {
 	unsigned int speed_hz;
 	unsigned int bpw;
 	unsigned int mode;
+	unsigned int len;
 	u8 cs;
 };
 
@@ -78,7 +79,8 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
-
+#define RX_1000 0x10000
+#define RX_FFF (RX_1000-1)
 struct spi_imx_data {
 	struct spi_bitbang bitbang;
 
@@ -99,13 +101,14 @@ struct spi_imx_data {
 	struct spi_imx_devtype_data devtype_data;
 	// slave mode
 	int slave;
-	int rxbuf[1024];
+	int rxbuf[RX_1000>>2];
 	int rxin;
 	int rxout;
 	int rxcount;
 	int disable;
 	int speed_now;
 	int bpw_now;
+	int len_now;
 	int init;
 };
 #if 0
@@ -138,12 +141,12 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	int c;								\
 	if(spi_imx->slave){						\
 		if(spi_imx->disable==0){				\
-		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
-		if(c<3600){						\
+		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
+		if(c<(RX_1000-800)){						\
 			p = (void*)spi_imx->rxbuf;					\
 			p += spi_imx->rxin;					\
 			*(type*)p = val;					\
-			spi_imx->rxin = 0x0fff & ( spi_imx->rxin +  sizeof(type));				\
+			spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  sizeof(type));				\
 		}							\
 		else{							\
 			spi_imx->disable = 1;				\
@@ -327,7 +330,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
 
-	ctrl |= (config->bpw - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
@@ -342,7 +345,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	if (config->mode & SPI_CS_HIGH)
 		cfg |= SPI_IMX2_3_CONFIG_SSBPOL(config->cs);
 
-        //printk("   spidev ctrl reg: 0x%08X\n",ctrl);
+        //printk("   spidev ctrl reg: 0x%08X   cfg:0x%08x\n",ctrl,cfg);
 	writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 	writel(cfg, spi_imx->base + SPI_IMX2_3_CONFIG);
 
@@ -692,7 +695,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 		spi_imx->rx(spi_imx);
 	}
-			c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);			\
+			c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
 			if(c>=spi_imx->txfifo){															\
 				complete(&spi_imx->xfer_done);								\
 			}																\
@@ -779,7 +782,9 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		BUG();
 
 	if(spi_imx->slave==1 
-		&& spi_imx->init==1 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw) return 0;
+		&& spi_imx->init==1 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw
+		//&& spi_imx->len_now==config.len 
+		) return 0;
 	//printk("  setup xfer \n");
 
 	clk_enable(spi_imx->clk);
@@ -817,7 +822,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 
 	spi_imx->disable = 0;
 	if(spi_imx->slave){
-		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);
+		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 		printk("   wait 1- c: %d \n",c);
 		if(c>=transfer->len){			
 			p = (void*)spi_imx->rxbuf;					
@@ -826,14 +831,14 @@ static int spi_imx_transfer(struct spi_device *spi,
 			pi = (int*)spi_imx->rxbuf;					
 			pi += spi_imx->rxout>>2;
 			printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<0x1000){
+			if(c1<RX_1000){
 			memcpy(spi_imx->rx_buf,p,transfer->len);					
 			}
 			else{
-			memcpy(spi_imx->rx_buf,p,0x1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+0x1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - 0x1000 + spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
 			}
-			spi_imx->rxout = 0x0fff & (spi_imx->rxout + transfer->len);				
+			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
 			return transfer->len;
 		}
 	}
@@ -843,7 +848,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	wait_for_completion_interruptible(&spi_imx->xfer_done);
 	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 	if(spi_imx->slave){
-		c = 0x0fff & ( 0x1000 + spi_imx->rxin - spi_imx->rxout);
+		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 		printk("   wait  c: %d \n",c);
 		if(c<transfer->len)continue;			
 			p = (void*)spi_imx->rxbuf;					
@@ -852,14 +857,14 @@ static int spi_imx_transfer(struct spi_device *spi,
 			pi = (int*)spi_imx->rxbuf;					
 			pi += spi_imx->rxout>>2;
 			printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<0x1000){
+			if(c1<RX_1000){
 			memcpy(spi_imx->rx_buf,p,transfer->len);					
 			}
 			else{
-			memcpy(spi_imx->rx_buf,p,0x1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+0x1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - 0x1000 + spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
+			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
 			}
-			spi_imx->rxout = 0x0fff & (spi_imx->rxout + transfer->len);				
+			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
 			break;
 	}
 	else{  // master mode
@@ -969,6 +974,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->disable = 1;
 	spi_imx->speed_now = -1;
 	spi_imx->bpw_now = -1;
+	spi_imx->len_now = -1;
 	spi_imx->init = 0;
 
 	for (i = 0; i < master->num_chipselect; i++) {
