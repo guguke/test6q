@@ -132,6 +132,7 @@ struct spi_imx_data {
 	}								\
 
 		printk(" rx_type 1  c:%d\n",c);				\
+	printk("   spi.slave:%d   buf_rx_type    rx.read TC flag : 0x%08X   0x%08X    val: 0x%08X\n",spi_imx->slave,reg,reg1,val);					\
 			printk(" rx_type 2  c:%d   0x%08x\n",c,val);			\
 	if(reg){								\
 		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);			\
@@ -718,11 +719,12 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	reg = spi_imx->devtype_data.rx_available(spi_imx);
-		printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
+		//printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
 	while ( reg ) {
+	//if ( reg ) {
 		spi_imx->rx(spi_imx);
 		reg = spi_imx->devtype_data.rx_available(spi_imx);
-		printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
+		//printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
 	//while (spi_imx->devtype_data.rx_available(spi_imx)) {
 		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 		//spi_imx->rx(spi_imx);
@@ -759,6 +761,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	while (spi_imx->devtype_data.rx_available(spi_imx)) {
+	//if (spi_imx->devtype_data.rx_available(spi_imx)) {
 		spi_imx->rx(spi_imx);
 		//printk("  isr: %d         rx ==>   spi_imx->txfifo : %d ********************** \n",spi_imx->slave,spi_imx->txfifo);
 		if(spi_imx->txfifo) spi_imx->txfifo--;
@@ -856,9 +859,11 @@ static int spi_imx_transfer(struct spi_device *spi,
 	//init_completion(&spi_imx->xfer_done);
 
 	spi_imx_push(spi_imx);
-	if(spi_imx->slave) spi_imx_push_slave(spi_imx);
+	//if(spi_imx->slave) spi_imx_push_slave(spi_imx);
 
 	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
+	if(spi_imx->slave==1)
+		spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 
 	spi_imx->disable = 0;
 	if(spi_imx->slave){
