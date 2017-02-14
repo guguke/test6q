@@ -247,6 +247,7 @@ static unsigned int spi_imx_clkdiv_2(unsigned int fin,
 
 #define SPI_IMX2_3_STAT		0x18
 #define SPI_IMX2_3_STAT_RR		(1 <<  3)
+#define SPI_IMX2_3_STAT_TC		(1 <<  7)
 
 /* MX51 eCSPI */
 static unsigned int spi_imx2_3_clkdiv(unsigned int fin, unsigned int fspi)
@@ -687,7 +688,7 @@ static void spi_imx_push(struct spi_imx_data *spi_imx)
 static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
-	int c;
+	int c,reg;
 
 	//printk("  isr           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
@@ -695,7 +696,12 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 		spi_imx->rx(spi_imx);
 	}
-	//readl(spi_imx->base + SPI_IMX2_3_STAT) & SPI_IMX2_3_STAT_RR;
+	reg=readl(spi_imx->base + SPI_IMX2_3_STAT) & SPI_IMX2_3_STAT_TC;
+	printk(" isr TC flag : 0x%08X\n",reg);
+	if(reg){
+		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);
+		writel
+	}
 			c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
 			if(c>=spi_imx->txfifo){															\
 				complete(&spi_imx->xfer_done);								\
