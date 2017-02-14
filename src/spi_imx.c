@@ -695,6 +695,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
 		spi_imx->rx(spi_imx);
 	}
+	//readl(spi_imx->base + SPI_IMX2_3_STAT) & SPI_IMX2_3_STAT_RR;
 			c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
 			if(c>=spi_imx->txfifo){															\
 				complete(&spi_imx->xfer_done);								\
