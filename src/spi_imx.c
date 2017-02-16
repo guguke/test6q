@@ -153,6 +153,7 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	int c,reg,reg1;								\
 	reg=readl(spi_imx->base + SPI_IMX2_3_STAT);	\
 	reg1 = reg & SPI_IMX2_3_STAT_TC;	\
+	printk("   spi.slave:%d   buf_rx_type    rx.read TC flag : 0x%08X   0x%08X    val: 0x%08X\n",spi_imx->slave,reg,reg1,val);					\
 	if(reg1){								\
 		writel(0x80,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}									\
@@ -330,6 +331,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 		struct spi_imx_config *config)
 {
 	u32 ctrl = SPI_IMX2_3_CTRL_ENABLE, cfg = 0;
+	int w=4;
         //ctrl |= 0x00010000;
 
 	/*
@@ -351,10 +353,15 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
-
+#if 0
+	if(config->bpw<=8) w=1;
+	else if(config->bpw<=16) w=2;
+	else if(config->bpw<=32) w = 4;
+	else w = config->bpw & 0x0ff;
+#endif
 	//printk("func config   len : %d ********************** \n",spi_imx->len2send);
 	//ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
-	ctrl |= (2016 - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	ctrl |= ((config->bpw<<8)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
@@ -815,7 +822,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	struct spi_imx_config config;
-	//printk(" func setupxfer \n");
+	//printk(" func setupxfer,  len:%d \n",t->len);
 
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
@@ -843,6 +850,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		spi_imx->rx = spi_imx_buf_rx_u32;
 		spi_imx->tx = spi_imx_buf_tx_u32;
 	} 
+	config.bpw = t->len;
 
 	if(spi_imx->slave==1 
 		&& spi_imx->init==1 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw
