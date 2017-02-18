@@ -45,6 +45,26 @@
 #define MXC_CSPIINT		0x0c
 #define MXC_RESET		0x1c
 
+#define SPI_IMX2_3_CTRL		0x08
+#define SPI_IMX2_3_CTRL_ENABLE		(1 <<  0)
+#define SPI_IMX2_3_CTRL_XCH		(1 <<  2)
+#define SPI_IMX2_3_CTRL_MODE_MASK	(0xf << 4)
+#define SPI_IMX2_3_CTRL_POSTDIV_OFFSET	8
+#define SPI_IMX2_3_CTRL_PREDIV_OFFSET	12
+#define SPI_IMX2_3_CTRL_CS(cs)		((cs) << 18)
+#define SPI_IMX2_3_CTRL_BL_OFFSET	20
+
+#define SPI_IMX2_3_CONFIG	0x0c
+#define SPI_IMX2_3_CONFIG_SCLKPHA(cs)	(1 << ((cs) +  0))
+#define SPI_IMX2_3_CONFIG_SCLKPOL(cs)	(1 << ((cs) +  4))
+#define SPI_IMX2_3_CONFIG_SBBCTRL(cs)	(1 << ((cs) +  8))
+#define SPI_IMX2_3_CONFIG_SSBPOL(cs)	(1 << ((cs) + 12))
+
+#define SPI_IMX2_3_INT		0x10
+#define SPI_IMX2_3_INT_TEEN		(1 <<  0)
+#define SPI_IMX2_3_INT_RREN		(1 <<  3)
+#define SPI_IMX2_3_INT_RDREN		(1 <<  4)
+
 #define MX3_CSPISTAT		0x14
 #define MX3_CSPISTAT_RR		(1 << 3)
 
@@ -152,15 +172,16 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 {									\
 	unsigned int val = readl(spi_imx->base + MXC_CSPIRXDATA);	\
 	void *p;								\
-	int c,reg,reg1,treg,dreg;								\
+	int c,reg,reg1,treg,dreg,creg;								\
+	if(spi_imx->slave){						\
 	reg=readl(spi_imx->base + SPI_IMX2_3_STAT);	\
 	reg1 = reg & SPI_IMX2_3_STAT_TC;	\
 	treg=readl(spi_imx->base + SPI_IMX2_3_TESTREG);	\
 	dreg=readl(spi_imx->base + SPI_IMX2_3_DMAREG);	\
+	creg=readl(spi_imx->base + SPI_IMX2_3_CTRL);	\
 						\
-	if(reg1){								\
 		writel(0x80,spi_imx->base + SPI_IMX2_3_STAT);			\
-	}									\
+	}								\
 	if(spi_imx->slave){						\
 		if(spi_imx->disable==0){				\
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
@@ -183,6 +204,13 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	if (spi_imx->rx_buf) {						\
 		*(type *)spi_imx->rx_buf = val;				\
 		spi_imx->rx_buf += sizeof(type);			\
+	reg=readl(spi_imx->base + SPI_IMX2_3_STAT);	\
+	reg1 = reg & SPI_IMX2_3_STAT_TC;	\
+	treg=readl(spi_imx->base + SPI_IMX2_3_TESTREG);	\
+	dreg=readl(spi_imx->base + SPI_IMX2_3_DMAREG);	\
+	creg=readl(spi_imx->base + SPI_IMX2_3_CTRL);	\
+						\
+		writel(0x80,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}								\
 	}												\
 }
@@ -247,7 +275,7 @@ static unsigned int spi_imx_clkdiv_2(unsigned int fin,
 
 	return 7;
 }
-
+#if 0
 #define SPI_IMX2_3_CTRL		0x08
 #define SPI_IMX2_3_CTRL_ENABLE		(1 <<  0)
 #define SPI_IMX2_3_CTRL_XCH		(1 <<  2)
@@ -267,7 +295,7 @@ static unsigned int spi_imx_clkdiv_2(unsigned int fin,
 #define SPI_IMX2_3_INT_TEEN		(1 <<  0)
 #define SPI_IMX2_3_INT_RREN		(1 <<  3)
 #define SPI_IMX2_3_INT_RDREN		(1 <<  4)
-#if 0
+
 #define SPI_IMX2_3_STAT		0x18
 #define SPI_IMX2_3_STAT_RR		(1 <<  3)
 #define SPI_IMX2_3_STAT_TC		(1 <<  7)
@@ -365,11 +393,12 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 #endif
 	//printk("func config   len : %d ********************** \n",spi_imx->len2send);
 	//ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
-	ctrl |= ((config->bpw<<8)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	printk(KERN_DEBUG"%s  config.bpw %d(%x  x8:%d %x \n",__FUNCTION__,config->bpw,config->bpw,8*config->bpw,8*config->bpw);
+	ctrl |= ((config->bpw<<3)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
-	//if(config->cs==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
-	if(spi_imx->slave==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
+	// burst 1 
+	//if(spi_imx->slave==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
 
 	if (config->mode & SPI_CPHA)
 		cfg |= SPI_IMX2_3_CONFIG_SCLKPHA(config->cs);
@@ -740,7 +769,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	int c,reg,reg1;
 	int i;
 
-	//printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
+	printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 	//reg=readl(spi_imx->base + SPI_IMX2_3_STAT);
 	//reg1=readl(spi_imx->base + SPI_IMX2_3_TESTREG);
 	//printk(" isr slave , stat flag : 0x%08X    test.reg: 0x%08X\n",reg,reg1);
@@ -787,7 +816,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 		return spi_imx_isr_slave(irq,dev_id);
 	}
 
-	//printk(KERN_DEBUG"%s             sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
+	printk(KERN_DEBUG"%s             sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	//while (spi_imx->devtype_data.rx_available(spi_imx)) {
 	if (spi_imx->devtype_data.rx_available(spi_imx)) {
