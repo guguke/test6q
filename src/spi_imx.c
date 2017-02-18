@@ -139,6 +139,7 @@ struct spi_imx_data {
 		printk(" rx_type 1  c:%d\n",c);				\
 	printk("   spi.slave:%d   buf_rx_type    rx.read TC flag : 0x%08X   0x%08X    val: 0x%08X\n",spi_imx->slave,reg,reg1,val);					\
 	printk("   spi.slave:%d   buf_rx_type    rx.read TC flag : 0x%08X val: 0x%08X   test;%08X\n",spi_imx->slave,reg,val,treg);					\
+	printk(KERN_DEBUG"   spi.slave:%d   buf_rx_type stat: 0x%08X val: 0x%08X  test;%08X ,%08X\n",spi_imx->slave,reg,val,treg,dreg);					\
 			printk(" rx_type 2  c:%d   0x%08x\n",c,val);			\
 	if(reg){								\
 		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);			\
@@ -156,7 +157,7 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	reg1 = reg & SPI_IMX2_3_STAT_TC;	\
 	treg=readl(spi_imx->base + SPI_IMX2_3_TESTREG);	\
 	dreg=readl(spi_imx->base + SPI_IMX2_3_DMAREG);	\
-	printk("   spi.slave:%d   buf_rx_type stat: 0x%08X val: 0x%08X  test;%08X ,%08X\n",spi_imx->slave,reg,val,treg,dreg);					\
+						\
 	if(reg1){								\
 		writel(0x80,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}									\
@@ -174,7 +175,7 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
 			spi_imx->rxin = 0;							\
 			spi_imx->rxout = 0;							\
-			printk("    rx overflow , slave %d \n",spi_imx->slave);		\
+			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
 		}							\
 		}							\
 	}								\
@@ -739,7 +740,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	int c,reg,reg1;
 	int i;
 
-	printk("  isr  slave         sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
+	//printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 	//reg=readl(spi_imx->base + SPI_IMX2_3_STAT);
 	//reg1=readl(spi_imx->base + SPI_IMX2_3_TESTREG);
 	//printk(" isr slave , stat flag : 0x%08X    test.reg: 0x%08X\n",reg,reg1);
@@ -786,7 +787,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 		return spi_imx_isr_slave(irq,dev_id);
 	}
 
-	printk("  isr_master           sp_imx_data->slave : %d ********************** \n",spi_imx->slave);
+	//printk(KERN_DEBUG"%s             sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	//while (spi_imx->devtype_data.rx_available(spi_imx)) {
 	if (spi_imx->devtype_data.rx_available(spi_imx)) {
@@ -1044,7 +1045,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, master);
 
 	master->bus_num = pdev->id;
-	printk(" spi bus num:%d ===============\n",master->bus_num);
+	printk(KERN_DEBUG"%s   spi bus num:%d ===============\n",__FUNCTION__,master->bus_num);
 	master->num_chipselect = mxc_platform_info->num_chipselect;
 
 	spi_imx = spi_master_get_devdata(master);
