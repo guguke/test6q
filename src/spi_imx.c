@@ -138,6 +138,14 @@ struct spi_imx_data {
 	int len_now;
 	int init;
 	int len2send;
+	// master mode
+	int txbuf[RX_1000>>2];
+	int txin;
+	int txout;
+	int txcount;
+	int speed_tx;
+	int bpw_tx;
+	int len_tx;
 };
 #if 0
 	void *p;								\
@@ -236,6 +244,9 @@ MXC_SPI_BUF_RX(u16)
 MXC_SPI_BUF_TX(u16)
 MXC_SPI_BUF_RX(u32)
 MXC_SPI_BUF_TX(u32)
+
+static struct spi_imx_data *gpspi[32];
+static int gnspi=0;
 
 /* First entry is reserved, second entry is valid only if SDHC_SPIEN is set
  * (which is currently not the case in this driver)
@@ -1091,6 +1102,13 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->len_now = -1;
 	spi_imx->init = 0;
 
+	spi_imx->txin=0;
+	spi_imx->txout=0;
+	spi_imx->txcount=0;
+	spi_imx->speed_tx = -1;
+	spi_imx->bpw_tx = -1;
+	spi_imx->len_tx = -1;
+
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
 			continue;
@@ -1149,6 +1167,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "can't get irq%d: %d\n", spi_imx->irq, ret);
 		goto out_iounmap;
 	}
+	gpspi[gnspi++]=spi_imx;
 
 	spi_imx->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(spi_imx->clk)) {
