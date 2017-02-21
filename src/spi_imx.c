@@ -133,19 +133,19 @@ struct spi_imx_data {
 	int rxout;
 	int rxcount;
 	int disable;
-	int speed_now;
-	int bpw_now;
-	int len_now;
+	unsigned int speed_now;   //  same speed_tx ???? 
+	unsigned int bpw_now;
+	//unsigned int len_now;        // len == bpw ,  no use
+	unsigned int mode_now;
 	int init;
-	int len2send;
+	//int len2send;
 	// master mode
 	int txbuf[RX_1000>>2];
 	int txin;
 	int txout;
 	int txcount;
-	int speed_tx;
-	int bpw_tx;
-	int len_tx;
+
+	int firstTX;
 };
 #if 0
 	void *p;								\
@@ -404,7 +404,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 #endif
 	//printk("func config   len : %d ********************** \n",spi_imx->len2send);
 	//ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
-	printk(KERN_DEBUG"%s  config.bpw %d(%x  x8:%d %x \n",__FUNCTION__,config->bpw,config->bpw,8*config->bpw,8*config->bpw);
+	//printk(KERN_DEBUG"%s  config.bpw %d(%x  x8:%d %x \n",__FUNCTION__,config->bpw,config->bpw,8*config->bpw,8*config->bpw);
 	ctrl |= ((config->bpw<<3)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
@@ -423,8 +423,9 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
         //printk("   spidev ctrl reg: 0x%08X   cfg:0x%08x\n",ctrl,cfg);
 	writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 	writel(cfg, spi_imx->base + SPI_IMX2_3_CONFIG);
-	writel(0x00200020, spi_imx->base + SPI_IMX2_3_DMAREG);
+	writel(0x00100030, spi_imx->base + SPI_IMX2_3_DMAREG);
 
+	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 	return 0;
 }
 
@@ -774,6 +775,13 @@ static void spi_imx_push(struct spi_imx_data *spi_imx)
 	spi_imx->devtype_data.trigger(spi_imx);
 }
 
+static void spi_imx_mypush(struct spi_imx_data *spi_imx)
+{
+	while (spi_imx->txfifo < spi_imx->devtype_data.fifosize) {
+		spi_imx->tx(spi_imx);
+		spi_imx->txfifo++;
+	}
+}
 static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
@@ -860,7 +868,15 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
+{
+	if(pcfg->speed_hz != spi_imx->speed_now) return 0;
+	if(pcfg->bpw != spi_imx->bpw_now ) return 0;
+	if( pcfg->mode != spi_imx->mode_now ) return 0;
+	//if( pcfg->len != spi_imx->len_now ) return 0;
 
+	return 1;
+}
 static int spi_imx_setupxfer(struct spi_device *spi,
 				 struct spi_transfer *t)
 {
@@ -896,23 +912,44 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 	} 
 	config.bpw = t->len;
 
+	if(sameCFG(&config,spi_imx)) return 1;
+#if 0
 	if(spi_imx->slave==1 
 		&& spi_imx->init==1 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw
 		//&& spi_imx->len_now==config.len 
 		) return 0;
+#endif
 	//printk("  setup xfer \n");
 
 	clk_enable(spi_imx->clk);
 	spi_imx->init = 1;
 	spi_imx->speed_now = config.speed_hz;
 	spi_imx->bpw_now = config.bpw;
-	//spi_imx->len2send = ;
+	spi_imx->mode_now = config.mode;
+	spi_imx->firstTX = 1;
 
 	spi_imx->devtype_data.config(spi_imx, &config);
-	if(spi_imx->slave==0) clk_disable(spi_imx->clk);
+	//if(spi_imx->slave==0) clk_disable(spi_imx->clk);
 	return 0;
 }
+static int tx2buf(void *p,int len)
+{
+	int c,c1;
+	void *pdes;
 
+	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+	if(c>RX_1000-800) return 1;// error overflow
+	c1 = spi_imx->txin + len;
+	pdes = (void*)spi_imx->txbuf;
+	if(c1<RX_1000){
+		memcpy(pdes+spi_imx->txin,p,len);					
+	}
+	else{
+		memcpy(pdes+spi_imx->txin,p,RX_1000 - spi_imx->txin);					
+		memcpy(pdes, p + RX_1000 - spi_imx->txin ,len - RX_1000 + spi_imx->txin);					
+	}
+	return 0;
+}
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
@@ -922,24 +959,28 @@ static int spi_imx_transfer(struct spi_device *spi,
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
-	if(spi_imx->slave==0)
-		 clk_enable(spi_imx->clk);
 	spi_imx->tx_buf = transfer->tx_buf;
 	spi_imx->rx_buf = transfer->rx_buf;
 	spi_imx->count = transfer->len;
 	spi_imx->txfifo = 0;
 
-	//printk("   transfer : %d   init      done  \n",spi_imx->slave);
 	//init_completion(&spi_imx->xfer_done);
 
-	spi_imx_push(spi_imx);
+	//spi_imx_push(spi_imx);
+	if(spi_imx->slave==0){
+		if(spi_imx->firstTX==1){
+			spi_imx_mypush(spi_imx);
+			spi_imx->firstTX=0;
+		}
+		else{
+			tx2buf();
+		}
+	}
+
 	//if(spi_imx->slave) spi_imx_push_slave(spi_imx);
 
-	if(spi_imx->slave==1)
-		spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
-	else 
-		spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
-		//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE|MXC_INT_RR);
+	// move to func _config()
+	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 
 	spi_imx->disable = 0;
 	if(spi_imx->slave){
@@ -1099,15 +1140,14 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->disable = 1;
 	spi_imx->speed_now = -1;
 	spi_imx->bpw_now = -1;
-	spi_imx->len_now = -1;
+	//spi_imx->len_now = -1;
+	spi_imx->mode_now = -1;
 	spi_imx->init = 0;
 
 	spi_imx->txin=0;
 	spi_imx->txout=0;
 	spi_imx->txcount=0;
-	spi_imx->speed_tx = -1;
-	spi_imx->bpw_tx = -1;
-	spi_imx->len_tx = -1;
+	spi_imx->firstTX=0;// new cfg , first tx 
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
