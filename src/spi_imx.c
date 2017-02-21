@@ -365,7 +365,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 #endif
 	//printk("func config   len : %d ********************** \n",spi_imx->len2send);
 	//ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
-	ctrl |= ((config->bpw<<8)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	ctrl |= ((config->bpw)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0)cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
@@ -854,8 +854,11 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		spi_imx->rx = spi_imx_buf_rx_u32;
 		spi_imx->tx = spi_imx_buf_tx_u32;
 	} 
-	config.bpw = t->len;
-
+#if 0
+	if(t->len==252) config.bpw=252;
+	else if(config.bpw==8 || config.bpw==16 || config.bpw==32) config.bpw = config.bpw>>3;
+	else config.bpw = t->len;
+#endif
 	if(spi_imx->slave==1 
 		&& spi_imx->init==1 && spi_imx->speed_now==config.speed_hz && spi_imx->bpw_now==config.bpw
 		//&& spi_imx->len_now==config.len 
