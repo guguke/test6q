@@ -813,7 +813,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	int c,reg,reg1;
 	int i;
 
-	printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
+	//printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 	//reg=readl(spi_imx->base + SPI_IMX2_3_STAT);
 	//reg1=readl(spi_imx->base + SPI_IMX2_3_TESTREG);
 	//printk(" isr slave , stat flag : 0x%08X    test.reg: 0x%08X\n",reg,reg1);
@@ -930,11 +930,25 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+// isr_main
 static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
+	struct spi_imx_data *pspi;
+	int i;
+
+	//printk(KERN_DEBUG"%s  isr.main           sp_imx_data->slave : %d ***** \n",__FUNCTION__,spi_imx->slave);
+#if 0
 	if(spi_imx->slave) return spi_imx_isr_slave(irq,dev_id);
 	else return spi_imx_isr_master(irq,dev_id);
+#endif
+	for(i=0;i<gnspi;i++){
+		pspi=gpspi[i];
+		if(pspi->slave) spi_imx_isr_slave(irq,pspi);
+		else spi_imx_isr_master(irq,pspi);
+	}
+	return IRQ_HANDLED;
+	
 }
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 {
@@ -1030,7 +1044,7 @@ static int spi_imx_setupxfer_slave(struct spi_device *spi, struct spi_transfer *
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	struct spi_imx_config config;
-	printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
+	//printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
 
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
@@ -1089,7 +1103,10 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 
 	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-	if(c>RX_1000-800) return 0;// error overflow
+	if(c>RX_1000-800){
+		printk(KERN_DEBUG"%s     txbuf overflow\n",__FUNCTION__);
+		return 0;// error overflow
+	}
 	c1 = spi_imx->txin + len;
 	pdes = (void*)spi_imx->txbuf;
 	//printk(KERN_DEBUG"%s   buf.len:0x%8x   xin+len:0x%8x   xin:%8x\n",__FUNCTION__,c,c1,spi_imx->txin);
@@ -1318,7 +1335,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->disable = 1;
 	spi_imx->speed_now = -1;
 	spi_imx->bpw_now = -1;
-	//spi_imx->len_now = -1;
+	spi_imx->len_now = -1;
 	spi_imx->mode_now = -1;
 	spi_imx->init = 0;
 
@@ -1389,6 +1406,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		goto out_iounmap;
 	}
 	gpspi[gnspi++]=spi_imx;
+	printk(KERN_DEBUG"%s add gnspi: %d\n",__FUNCTION__,gnspi);
 
 	spi_imx->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(spi_imx->clk)) {
