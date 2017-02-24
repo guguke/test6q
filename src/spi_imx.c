@@ -791,6 +791,14 @@ static void spi_imx_mypush(struct spi_imx_data *spi_imx)
 		spi_imx->txfifo++;
 	}
 }
+static int blank2rx(struct spi_imx_data *spi_imx)
+{
+	int reg;
+	if(spi_imx->rxin!=spi_imx->rxout) return 0;
+	reg=8 & readl(spi_imx->base + SPI_IMX2_3_STAT);
+	if(reg) return 0;
+	return 1;// blank 
+}
 static int blank2tx(struct spi_imx_data *spi_imx)
 {
 	int reg;
@@ -886,15 +894,11 @@ static int txReadFifo(struct spi_imx_data *spi_imx)
 	return 0;
 }
 
-static irqreturn_t spi_imx_isr(int irq, void *dev_id)
+static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
 	int nByte;
-
-	if(spi_imx->slave){
-		return spi_imx_isr_slave(irq,dev_id);
-	}
 
 	//printk(KERN_DEBUG"%s  master.isr           sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 
@@ -926,6 +930,12 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+static irqreturn_t spi_imx_isr(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+	if(spi_imx->slave) return spi_imx_isr_slave(irq,dev_id);
+	else return spi_imx_isr_master(irq,dev_id);
+}
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 {
 	if(pcfg->speed_hz != spi_imx->speed_now) return 0;
@@ -935,16 +945,6 @@ static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 
 	return 1;
 }
-#if 0
-static int blank2tx(struct spi_imx_data *spi_imx)
-{
-	int reg;
-	if(spi_imx->txin!=spi_imx->txout) return 0;
-	reg=1 & readl(spi_imx->base + SPI_IMX2_3_STAT);
-	if(reg==0) return 0;
-	return 1;// blank 
-}
-#endif
 static int do_config(struct spi_imx_data *spi_imx,struct spi_imx_config *config)
 {
 	int ret=0;
@@ -977,7 +977,7 @@ static int do_config(struct spi_imx_data *spi_imx,struct spi_imx_config *config)
 
 	return ret;
 }
-static int spi_imx_setupxfer(struct spi_device *spi,
+static int spi_imx_setupxfer_master(struct spi_device *spi,
 				 struct spi_transfer *t)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
@@ -995,22 +995,6 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		config.bpw = spi->bits_per_word;
 	if (!config.speed_hz)
 		config.speed_hz = spi->max_speed_hz;
-#if 0
-	/* Initialize the functions for transfer */
-	if (config.bpw <= 8) {
-		spi_imx->rx = spi_imx_buf_rx_u8;
-		spi_imx->tx = spi_imx_buf_tx_u8;
-	} else if (config.bpw <= 16) {
-		spi_imx->rx = spi_imx_buf_rx_u16;
-		spi_imx->tx = spi_imx_buf_tx_u16;
-	} else if (config.bpw <= 32) {
-		spi_imx->rx = spi_imx_buf_rx_u32;
-		spi_imx->tx = spi_imx_buf_tx_u32;
-	} else {
-		spi_imx->rx = spi_imx_buf_rx_u32;
-		spi_imx->tx = spi_imx_buf_tx_u32;
-	} 
-#endif
 	config.len = t->len;
 
 	switch(spi_imx->retcfg){
@@ -1042,6 +1026,62 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 
 	return 0;
 }
+static int spi_imx_setupxfer_slave(struct spi_device *spi, struct spi_transfer *t)
+{
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	struct spi_imx_config config;
+	printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
+
+	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
+	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
+	config.mode = spi->mode;
+	config.cs = spi->chip_select;
+
+	if (!config.speed_hz)
+		config.speed_hz = spi->max_speed_hz;
+	if (!config.bpw)
+		config.bpw = spi->bits_per_word;
+	if (!config.speed_hz)
+		config.speed_hz = spi->max_speed_hz;
+	config.len = t->len;
+
+	switch(spi_imx->retcfg){
+	case 2:
+	case 1:///  config.ok
+		if(sameCFG(&config,spi_imx)){
+			spi_imx->retcfg=1;
+			break;
+		}
+		else{
+			if(blank2rx){// not same,blank
+				spi_imx->retcfg=1;// cfg.ok
+				do_config(spi_imx,&config);
+				break;
+			}
+			else{// not same, not blank
+				spi_imx->retcfg=2;// cfg.error
+				break;
+			}
+		}
+		break;
+	default: // config.notcfg
+		spi_imx->retcfg = 1;
+		spi_imx->init = 1;
+		clk_enable(spi_imx->clk);
+		do_config(spi_imx,&config);
+		break;
+	}
+
+	return 0;
+}
+static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
+{
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	if(spi_imx->slave) spi_imx_setupxfer_slave(spi,t);
+	else spi_imx_setupxfer_master(spi,t);
+
+	return 0;
+}
 static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 {
 	int c,c1;
@@ -1066,7 +1106,7 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	//printk(KERN_DEBUG"%s   txin: 0x%x      txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
 	return len;
 }
-static int spi_imx_transfer(struct spi_device *spi,
+static int spi_imx_transfer_master(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
 	int c,c1;
@@ -1115,23 +1155,8 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 	spi_imx->count = transfer->len;
 	spi_imx->txfifo = 0;
 
+	if(spi_imx->retcfg==2) return 0;// config.error
 	//init_completion(&spi_imx->xfer_done);
-
-	//spi_imx_push(spi_imx);
-	if(spi_imx->slave==0){
-		if(spi_imx->firstTX==1){
-			spi_imx_mypush(spi_imx);
-			spi_imx->firstTX=0;
-		}
-		else{
-			tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		}
-	}
-
-	//if(spi_imx->slave) spi_imx_push_slave(spi_imx);
-
-	// move to func _config()
-	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 
 	spi_imx->disable = 0;
 	if(spi_imx->slave){
@@ -1184,14 +1209,16 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
 			break;
 	}
-	else{  // master mode
-		clk_disable(spi_imx->clk);
-		break;
 	}
-	}
-	//clk_disable(spi_imx->clk);
 
 	return transfer->len;
+}
+static int spi_imx_transfer(struct spi_device *spi,
+				struct spi_transfer *transfer)
+{
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	if(spi_imx->slave) return spi_imx_transfer_slave(spi,transfer);
+	else return spi_imx_transfer_master(spi,transfer);
 }
 
 static int spi_imx_setup(struct spi_device *spi)
