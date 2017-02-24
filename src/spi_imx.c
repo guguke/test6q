@@ -944,6 +944,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 #endif
 	for(i=0;i<gnspi;i++){
 		pspi=gpspi[i];
+		if(pspi->retcfg==0)continue;
 		if(pspi->slave) spi_imx_isr_slave(irq,pspi);
 		else spi_imx_isr_master(irq,pspi);
 	}
