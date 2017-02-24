@@ -848,18 +848,21 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 {
 	void *p = (void*)spi_imx->txbuf;
 	int *pi;
+	int nByte=0;
 	unsigned int s;
 	for(;;){
 	if(spi_imx->txin == spi_imx->txout) break;
 	s= 0x4 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.full
-	if( s == 1 ) break;
+	//printk(KERN_DEBUG"%s   stat.bit2:%d\n",__FUNCTION__,s);
+	if( s ) break;
 	p = (void*)spi_imx->txbuf;
 	p += spi_imx->txout;
 	pi = (int *)p;
 	writel(*pi, spi_imx->base + MXC_CSPITXDATA);
 	spi_imx->txout = (spi_imx->txout + 4) % RX_FFF;
+	nByte+=4;
 	}
-	return 1;
+	return nByte;
 }
 static int txReadFifo(struct spi_imx_data *spi_imx)
 {
@@ -883,6 +886,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
+	int nByte;
 
 	if(spi_imx->slave){
 		return spi_imx_isr_slave(irq,dev_id);
@@ -893,7 +897,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	if(spi_imx->pkgSent==-2) return IRQ_HANDLED;
 
 	if(spi_imx->pkgSent==-1){
-		printk(KERN_DEBUG"%s   pkgSent==-1\n",__FUNCTION__,spi_imx->slave);
+		//printk(KERN_DEBUG"%s   pkgSent==-1\n",__FUNCTION__,spi_imx->slave);
 		buf2fifo(spi_imx);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( s ) return IRQ_HANDLED;
@@ -902,11 +906,11 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 	txReadFifo(spi_imx);
-	buf2fifo(spi_imx);
+	nByte = buf2fifo(spi_imx);
 
-	//printk(KERN_DEBUG"%s   txrcv: %d\n",__FUNCTION__,spi_imx->txrcv);
+	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
 	if(spi_imx->txrcv==0){
-		printk(KERN_DEBUG"%s   txrcv==0\n",__FUNCTION__);
+		//printk(KERN_DEBUG"%s   txrcv==0\n",__FUNCTION__);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
 			spi_imx->pkgSent=-2;
@@ -974,7 +978,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	struct spi_imx_config config;
-	printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
+	//printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
 
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
@@ -1060,7 +1064,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	void *p;
 	int *pi;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
-	printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,transfer->len);
+	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,transfer->len);
 	//return transfer->len;
 
 	spi_imx->tx_buf = transfer->tx_buf;
@@ -1073,8 +1077,8 @@ static int spi_imx_transfer(struct spi_device *spi,
 	if(spi_imx->pkgSent==-2){
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
 		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-		printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
-		if(c > (transfer->len<<2) ) {
+		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
+		if(c > (transfer->len<<1) ) {
 			spi_imx->pkgSent=-1;
 			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			return transfer->len;
