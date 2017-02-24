@@ -106,7 +106,7 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
-#define RX_1000 0x10000
+#define RX_1000 0x1000
 #define RX_FFF (RX_1000-1)
 struct spi_imx_data {
 	struct spi_bitbang bitbang;
@@ -849,8 +849,11 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 	void *p = (void*)spi_imx->txbuf;
 	int *pi;
 	int nByte=0;
+	int c;
 	unsigned int s;
 	for(;;){
+	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+	//printk(KERN_DEBUG"%s   len.txbuf: %d   txout: 0x%08x\n",__FUNCTION__,c,spi_imx->txout);
 	if(spi_imx->txin == spi_imx->txout) break;
 	s= 0x4 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.full
 	//printk(KERN_DEBUG"%s   stat.bit2:%d\n",__FUNCTION__,s);
@@ -859,9 +862,10 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 	p += spi_imx->txout;
 	pi = (int *)p;
 	writel(*pi, spi_imx->base + MXC_CSPITXDATA);
-	spi_imx->txout = (spi_imx->txout + 4) % RX_FFF;
+	spi_imx->txout = (spi_imx->txout + 4) & RX_FFF;
 	nByte+=4;
 	}
+	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
 	return nByte;
 }
 static int txReadFifo(struct spi_imx_data *spi_imx)
@@ -892,7 +896,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 		return spi_imx_isr_slave(irq,dev_id);
 	}
 
-	//printk(KERN_DEBUG"%s             sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
+	//printk(KERN_DEBUG"%s  master.isr           sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 
 	if(spi_imx->pkgSent==-2) return IRQ_HANDLED;
 
@@ -1043,19 +1047,24 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	int c,c1;
 	void *pdes;
 
+	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-	if(c>RX_1000-800) return 1;// error overflow
+	if(c>RX_1000-800) return 0;// error overflow
 	c1 = spi_imx->txin + len;
 	pdes = (void*)spi_imx->txbuf;
+	//printk(KERN_DEBUG"%s   buf.len:0x%8x   xin+len:0x%8x   xin:%8x\n",__FUNCTION__,c,c1,spi_imx->txin);
 	if(c1<=RX_1000){
+		//printk(KERN_DEBUG"%s c1<=  buf.len:0x%x   xin+len:0x%x\n",__FUNCTION__,c,c1);
 		memcpy(pdes+spi_imx->txin,p,len);					
 	}
 	else{
+		//printk(KERN_DEBUG"%s else  buf.len:0x%x   xin+len:0x%x\n",__FUNCTION__,c,c1);
 		memcpy(pdes+spi_imx->txin,p,RX_1000 - spi_imx->txin);					
 		memcpy(pdes, p + RX_1000 - spi_imx->txin ,len - RX_1000 + spi_imx->txin);					
 	}
 	spi_imx->txin = RX_FFF & (spi_imx->txin + len);
-	return 0;
+	//printk(KERN_DEBUG"%s   txin: 0x%x      txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
+	return len;
 }
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
