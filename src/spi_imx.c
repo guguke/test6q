@@ -106,7 +106,7 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
-#define RX_1000 0x1000
+#define RX_1000 0x100000
 #define RX_FFF (RX_1000-1)
 struct spi_imx_data {
 	struct spi_bitbang bitbang;
@@ -899,6 +899,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
 	int nByte;
+	u32 ctrl;
 
 	//printk(KERN_DEBUG"%s  master.isr           sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 
@@ -910,6 +911,9 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( s ) return IRQ_HANDLED;
 		spi_imx->pkgSent=0;
+		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+		ctrl &= ~0x00030000;
+		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 		spi_imx->devtype_data.trigger(spi_imx);
 		return IRQ_HANDLED;
 	}
@@ -924,7 +928,14 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 			spi_imx->pkgSent=-2;
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
 		}
-		else spi_imx->devtype_data.trigger(spi_imx);
+		else{
+			if(spi_imx->pkgSent==1){
+			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+			ctrl |= 0x00010000;
+			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+			}
+			spi_imx->devtype_data.trigger(spi_imx);
+		}
 		return IRQ_HANDLED;
 	}
 
