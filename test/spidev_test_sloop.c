@@ -36,7 +36,7 @@ static uint32_t speed = 2000000;
 static uint32_t zz = 252;// tx size
 static uint32_t ll = 1;// tx size
 static uint16_t delay=0;
-static uint16_t delayms=0;
+static uint32_t delayms=0;
 
 static void transfer(int fd,int vStart)
 {
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
 	for(i=0;i<ll;i++){
-		if(delayms!=0) usleep(delayms*1000);
+		if(delayms!=0) usleep(delayms);
 	transfer(fd,i);
 		printf(" loop(1..... : %d\n",i+1);
 	}
