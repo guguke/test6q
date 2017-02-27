@@ -1,3 +1,5 @@
+
+4. add memory tools, test/devmem2.c
 3. brancd v2
 	circular buffer, slave
    v2.1    test flag TC
