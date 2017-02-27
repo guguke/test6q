@@ -910,6 +910,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		buf2fifo(spi_imx);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( s ) return IRQ_HANDLED;
+		printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
 		spi_imx->pkgSent=0;
 		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		ctrl &= ~0x00030000;
@@ -922,7 +923,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 
 	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
 	if(spi_imx->txrcv==0){
-		//printk(KERN_DEBUG"%s   txrcv==0\n",__FUNCTION__);
+		printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
 			spi_imx->pkgSent=-2;
@@ -930,6 +931,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		}
 		else{
 			if(spi_imx->pkgSent==1){
+			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
 			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 			ctrl |= 0x00010000;
 			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
