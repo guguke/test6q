@@ -36,12 +36,13 @@ static uint32_t speed = 2000000;
 static uint32_t zz = 252;// tx size
 static uint32_t ll = 1;// tx size
 static uint16_t delay=0;
-static uint16_t delayms=0;
+static uint32_t delayus=0;   //usec
 
-static void transfer(int fd)
+static void transfer(int fd,int vStart)
 {
 	int ret;
-	uint8_t tx[1000];//
+	int ntx[1000];
+	uint8_t *tx=(uint8_t *)ntx;//
 	int i;
 	int *pi;
 #if 0
@@ -78,8 +79,9 @@ static void transfer(int fd)
 	};
 	pi = (int*)rx;
 	for(i=0;i<256;i++){
-		tx[i]=i;
-		rx[i]=0x0f;
+		ntx[i]=vStart+i;
+		//rx[i]=0x0f;
+		pi[i]=0xdeadbeef;
 	}
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
@@ -88,10 +90,8 @@ static void transfer(int fd)
 
 	//for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
 	for (ret = 0; ret < zz; ret++) {
-		if(ret!=0 && ret!=zz-1)continue;
-		if (!(ret % 6))
-			puts("");
-		printf("0x%X( %10d  ", pi[ret>>2],pi[ret>>2]);
+		//if(ret>5 && ret <zz-6)continue;
+		printf(" %02x", rx[ret] & 0x0ff);
 	}
 	puts("");
 }
@@ -158,7 +158,7 @@ static void parse_opts(int argc, char *argv[])
 			break;
 		case 'd':
 			//ll = atoi(optarg);
-			delayms = atoi(optarg);
+			delayus = atoi(optarg);
 			break;
 		case 'b':
 			bits = atoi(optarg);
@@ -246,8 +246,8 @@ int main(int argc, char *argv[])
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
 	for(i=0;i<ll;i++){
-		if(delayms!=0) usleep(delayms*1000);
-	transfer(fd);
+		if(delayus!=0) usleep(delayus);
+	transfer(fd,i);
 		printf(" loop(1..... : %d\n",i+1);
 	}
 
