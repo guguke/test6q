@@ -1,4 +1,9 @@
 
+
+
+6  b3.0 (pin.rdy==>gpio.interrupt)         <=== v2.1.0.1.1
+5. v2.1.0.1.1 , master spi , using pin.RDY           <== b2.1.0.1
+
 4. add memory tools, test/devmem2.c
 3. brancd v2
 	circular buffer, slave
