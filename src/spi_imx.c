@@ -107,6 +107,7 @@ struct spi_imx_devtype_data {
 	unsigned int fifosize;
 };
 static int gnSent=0;
+static int gnRDYint=0;
 #define RX_1000 0x100000
 #define RX_FFF (RX_1000-1)
 struct spi_imx_data {
@@ -976,12 +977,13 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
+	gnRDYint++;
 	s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 	if(s==0){
 		//printk(KERN_DEBUG"%s  trigger    \n",__FUNCTION__);
 		spi_imx->devtype_data.trigger(spi_imx);
 	}
-	//printk(KERN_DEBUG"%s  ========    \n",__FUNCTION__);
+	else printk(KERN_DEBUG"%s  txfifo.blank, num.rdy.interrupt:%d    \n",__FUNCTION__,gnRDYint);
 	return IRQ_HANDLED;
 }
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
