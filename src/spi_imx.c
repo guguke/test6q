@@ -914,9 +914,11 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		if( s ) return IRQ_HANDLED;
 		printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
 		spi_imx->pkgSent=0;
-		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-		ctrl &= ~0x00030000;
-		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+#if 0
+		//ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+		//ctrl &= ~0x00030000;
+		//writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+#endif
 		spi_imx->devtype_data.trigger(spi_imx);
 		return IRQ_HANDLED;
 	}
@@ -932,6 +934,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
 			printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
 		}
+#if 0
 		else{
 			if(spi_imx->pkgSent==1){
 			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
@@ -942,6 +945,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 			}
 			spi_imx->devtype_data.trigger(spi_imx);
 		}
+#endif
 		return IRQ_HANDLED;
 	}
 
@@ -967,6 +971,18 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	}
 	return IRQ_HANDLED;
 	
+}
+static irqreturn_t master_rdy_isr(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+	unsigned int s;
+	s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
+	if(s==0){
+		//printk(KERN_DEBUG"%s  trigger    \n",__FUNCTION__);
+		spi_imx->devtype_data.trigger(spi_imx);
+	}
+	//printk(KERN_DEBUG"%s  ========    \n",__FUNCTION__);
+	return IRQ_HANDLED;
 }
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 {
@@ -1426,6 +1442,18 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	gpspi[gnspi++]=spi_imx;
 	printk(KERN_DEBUG"%s add gnspi: %d\n",__FUNCTION__,gnspi);
 
+	ret = gpio_request_one(mxc_platform_info->rdy_gpio, GPIOF_IN, "spi.master.rdy");
+	if (ret) {
+		printk(KERN_DEBUG"%s request.rdy.gpio.error\n",__FUNCTION__);
+	}
+	else {
+	ret = request_irq(gpio_to_irq(mxc_platform_info->rdy_gpio), master_rdy_isr,
+				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
+				 "spi.rdy", spi_imx);
+		if (ret) {
+			printk(KERN_DEBUG"%s request.rdy.gpio.irq.error\n",__FUNCTION__);
+		}
+	}
 	spi_imx->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(spi_imx->clk)) {
 		dev_err(&pdev->dev, "unable to get clock\n");

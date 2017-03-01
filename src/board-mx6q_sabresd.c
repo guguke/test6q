@@ -128,6 +128,7 @@
 #define SABRESD_POWER_OFF	IMX_GPIO_NR(3, 29)
 
 #define SABRESD_CAN1_STBY	IMX_GPIO_NR(4, 5)
+#define MY_SPI1_RDY_GPIO	IMX_GPIO_NR(4, 5)
 #define SABRESD_ECSPI1_CS0  IMX_GPIO_NR(4, 9)
 #define SABRESD_ECSPI1_CS3  IMX_GPIO_NR(4, 12)
 #define SABRESD_CODEC_PWR_EN	IMX_GPIO_NR(4, 10)
@@ -332,11 +333,13 @@ static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi_cs),
         .master_mode=1,
+	.rdy_gpio=MY_SPI1_RDY_GPIO,
 };
 static const struct spi_imx_master mx6q_sabresd_spi2_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi2_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi2_cs),
         .master_mode=0,
+	.rdy_gpio=MY_SPI1_RDY_GPIO,
 };
 
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
@@ -1312,11 +1315,13 @@ static struct ahci_platform_data mx6q_sabresd_sata_data = {
 
 static void mx6q_sabresd_flexcan0_switch(int enable)
 {
+#if 0
 	if (enable) {
 		gpio_set_value(SABRESD_CAN1_STBY, 0);
 	} else {
 		gpio_set_value(SABRESD_CAN1_STBY, 1);
 	}
+#endif
 }
 
 static struct gpio mx6q_sabresd_flexcan_gpios[] = {
@@ -2021,14 +2026,14 @@ static void __init mx6_sabresd_board_init(void)
 			imx6dl_add_imx_epdc(&epdc_data);
 		}
 	}
-	
+#if 0	
 	ret = gpio_request_array(mx6q_sabresd_flexcan_gpios,
 			ARRAY_SIZE(mx6q_sabresd_flexcan_gpios));
 	if (ret)
 		pr_err("failed to request flexcan1-gpios: %d\n", ret);
 	else
 		imx6q_add_flexcan0(&mx6q_sabresd_flexcan0_pdata);
-
+#endif
 	clko2 = clk_get(NULL, "clko2_clk");
 	if (IS_ERR(clko2))
 		pr_err("can't get CLKO2 clock.\n");
