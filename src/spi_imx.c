@@ -106,6 +106,7 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
+static int gnSent=0;
 #define RX_1000 0x100000
 #define RX_FFF (RX_1000-1)
 struct spi_imx_data {
@@ -889,6 +890,7 @@ static int txReadFifo(struct spi_imx_data *spi_imx)
 			//printk(KERN_DEBUG"%s   txrcv:%d ====   len:%d  /4:%d\n",__FUNCTION__,spi_imx->txrcv,spi_imx->len_now,n63);
 			spi_imx->txrcv = 0;
 			spi_imx->pkgSent++;
+			gnSent++;
 		}
 	}
 	return 0;
@@ -923,17 +925,19 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 
 	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
 	if(spi_imx->txrcv==0){
-		printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
+		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
 			spi_imx->pkgSent=-2;
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
+			printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
 		}
 		else{
 			if(spi_imx->pkgSent==1){
 			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
 			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-			ctrl |= 0x00010000;
+			//ctrl |= 0x00020000;//low level
+			ctrl |= 0x00010000;// falling edge
 			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 			}
 			spi_imx->devtype_data.trigger(spi_imx);
