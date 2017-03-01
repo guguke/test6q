@@ -1,6 +1,6 @@
 
 
-
+7. v3.0.1 master.rdy.gpio.interrupt works
 6  b3.0 (pin.rdy==>gpio.interrupt)         <=== v2.1.0.1.1
 5. v2.1.0.1.1 , master spi , using pin.RDY           <== b2.1.0.1
 
