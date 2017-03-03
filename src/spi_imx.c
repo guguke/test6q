@@ -1450,7 +1450,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	}
 	else {
 	ret = request_irq(gpio_to_irq(mxc_platform_info->rdy_gpio), master_rdy_isr,
-				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
+				 //IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
+				 IRQF_TRIGGER_RISING,
 				 "spi.rdy", spi_imx);
 		if (ret) {
 			printk(KERN_DEBUG"%s request.rdy.gpio.irq.error\n",__FUNCTION__);
