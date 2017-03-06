@@ -34,6 +34,8 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/spi_bitbang.h>
 #include <linux/types.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
 
 #include <mach/spi.h>
 
@@ -106,6 +108,9 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
+static struct hrtimer timer5ms;
+static int gnSending=0;
+static int gnTimerS=0,gnTimerE=0;
 static int gnSent=0;
 static int gnRDYint=0;
 #define RX_1000 0x100000
@@ -367,9 +372,27 @@ static void __maybe_unused spi_imx2_3_intctrl(struct spi_imx_data *spi_imx, int 
 	writel(val, spi_imx->base + SPI_IMX2_3_INT);
 }
 
+static int gpio_set(int level)
+{
+#if 1
+	//struct spi_imx_data *spi_imx = gpspi[1];
+	int gpio = 59;//spi_imx->chipselect[spi->chip_select];
+
+	if (gpio >= 0)
+		gpio_direction_output(gpio, level);
+#endif
+	return 0;
+}
 static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 {
 	u32 reg;
+	ktime_t ktime;
+	unsigned long delay_in_ns=5000000L;
+
+	ktime = ktime_set(0,delay_in_ns);
+	gnTimerS++;
+	hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
+	gpio_set(0);
 
 	reg = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 	reg |= SPI_IMX2_3_CTRL_XCH;
@@ -903,7 +926,10 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 	unsigned int s;
 	int nByte;
 	u32 ctrl;
+	//ktime_t ktime;
+	//unsigned long delay_in_ns=5000000L;
 
+	//ktime = ktime_set(0,delay_in_ns);
 	//printk(KERN_DEBUG"%s  master.isr           sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
 
 	if(spi_imx->pkgSent==-2) return IRQ_HANDLED;
@@ -928,6 +954,9 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 
 	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
 	if(spi_imx->txrcv==0){
+		gnSending=0;
+		//gnTimerE++;
+		//hrtimer_cancel(&timer5ms);
 		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
@@ -973,17 +1002,53 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 	
 }
+#if 0
+static int gpio_set(int level)
+{
+	struct spi_imx_data *spi_imx = gpspi[1];
+	int gpio = spi_imx->chipselect[spi->chip_select];
+
+	if (gpio >= 0)
+		gpio_direction_output(gpio, level);
+
+	return 0;
+}
+#endif
+enum hrtimer_restart timer5ms_callback(struct hrtimer *timer)
+{
+	gpio_set(1);
+	printk(KERN_DEBUG"%s  timerout start:%d cancel:%d   pkgSent:%d\n",__FUNCTION__,gnTimerS,gnTimerE,gnSent);
+	return HRTIMER_NORESTART;
+}
 static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 {
+	//ktime_t ktime;
+	//unsigned long delay_in_ns=5000000L;
+
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
+
+	//ktime = ktime_set(0,delay_in_ns);
+	//hrtimer_init(&timer5ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
+	//timer5ms.function = &timer5ms_callback;
+	gnTimerE++;
+	hrtimer_cancel(&timer5ms);
+
 	gnRDYint++;
 	s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 	if(s==0){
+		//gnTimerS++;
+		//hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 		//printk(KERN_DEBUG"%s  trigger    \n",__FUNCTION__);
-		spi_imx->devtype_data.trigger(spi_imx);
+		if(0==gnSending){
+			spi_imx->devtype_data.trigger(spi_imx);
+			gnSending=1;
+		}
 	}
-	else printk(KERN_DEBUG"%s  txfifo.blank, num.rdy.interrupt:%d    \n",__FUNCTION__,gnRDYint);
+	else{
+		printk(KERN_DEBUG"%s  txfifo.blank, num.rdy.interrupt:%d  timer.s:%d .e:%d  \n",__FUNCTION__,gnRDYint,gnTimerS,gnTimerE);
+		//hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
+	}
 	return IRQ_HANDLED;
 }
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
@@ -1541,6 +1606,14 @@ static struct platform_driver spi_imx_driver = {
 
 static int __init spi_imx_init(void)
 {
+	//ktime_t ktime;
+	//unsigned long delay_in_ns=5000000L;
+
+	//ktime = ktime_set(0,delay_in_ns);
+	hrtimer_init(&timer5ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
+	timer5ms.function = &timer5ms_callback;
+	printk(KERN_DEBUG"%s init hrtimer \n",__FUNCTION__);
+
 	return platform_driver_register(&spi_imx_driver);
 }
 
