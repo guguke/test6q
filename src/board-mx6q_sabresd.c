@@ -1933,7 +1933,7 @@ static void __init mx6_sabresd_board_init(void)
 
 	/* SPI-2 */
 	imx6q_add_ecspi(1, &mx6q_sabresd_spi2_data);
-	printk(KERN_DEBUG"%s   spi2gpio:%d\n",__FUNCTION__,SABRESD_ECSPI2_CS1);
+	//printk(KERN_DEBUG"%s   spi2gpio:%d\n",__FUNCTION__,SABRESD_ECSPI2_CS1);
 	spi_device_init();
 
 	imx6q_add_mxc_hdmi(&hdmi_data);

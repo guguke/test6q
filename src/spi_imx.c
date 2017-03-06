@@ -374,9 +374,9 @@ static void __maybe_unused spi_imx2_3_intctrl(struct spi_imx_data *spi_imx, int 
 
 static int gpio_set(int level)
 {
-#if 1
+#if 0
 	//struct spi_imx_data *spi_imx = gpspi[1];
-	int gpio = 59;//spi_imx->chipselect[spi->chip_select];
+	int gpio = 59;//spi_imx->chipselect[spi->chip_select];   gpio(2,27)  , 32+27
 
 	if (gpio >= 0)
 		gpio_direction_output(gpio, level);
