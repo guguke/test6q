@@ -422,8 +422,9 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 	if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
+	//printk(KERN_DEBUG"%s  speed_hz:%d\n",__FUNCTION__,config->speed_hz);
 	/* set clock speed */
-	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz);
+	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2 );
 
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
