@@ -1261,7 +1261,6 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 		//return transfer->len;
 	}
 	init_completion(&spi_imx->xfer_done);
-	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
 	wait_for_completion_interruptible(&spi_imx->xfer_done);
 
 	return transfer->len;
