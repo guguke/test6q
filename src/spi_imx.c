@@ -916,6 +916,7 @@ static int txReadFifo(struct spi_imx_data *spi_imx)
 			spi_imx->txrcv = 0;
 			spi_imx->pkgSent++;
 			gnSent++;
+			complete(&spi_imx->xfer_done);
 		}
 	}
 	return 0;
@@ -1244,19 +1245,24 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	// retcfg.ok
 	if(spi_imx->pkgSent==-2){
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
-		if(c > (transfer->len<<1) ) {
+		//if(c > (transfer->len<<1) ) {
 			spi_imx->pkgSent=-1;
 			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-			return transfer->len;
-		}
-		else return transfer->len;
+			//return transfer->len;
+		//}
+		//else return transfer->len;
 	}
 	else{// sending 
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		return transfer->len;
+		//return transfer->len;
 	}
+	init_completion(&spi_imx->xfer_done);
+	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
+	wait_for_completion_interruptible(&spi_imx->xfer_done);
 
 	return transfer->len;
 }
