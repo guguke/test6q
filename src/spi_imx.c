@@ -158,6 +158,7 @@ struct spi_imx_data {
 	int retxfer;
 	int pkgSent;// init 0
 	int txrcv;
+	unsigned long timeoutNS;
 };
 #if 0
 	void *p;								\
@@ -374,9 +375,9 @@ static void __maybe_unused spi_imx2_3_intctrl(struct spi_imx_data *spi_imx, int 
 
 static int gpio_set(int level)
 {
-#if 0
+#if 1
 	//struct spi_imx_data *spi_imx = gpspi[1];
-	int gpio = 59;//spi_imx->chipselect[spi->chip_select];   gpio(2,27)  , 32+27
+	int gpio = 7;//59;//spi_imx->chipselect[spi->chip_select];   gpio(2,27)  , 32+27
 
 	if (gpio >= 0)
 		gpio_direction_output(gpio, level);
@@ -386,6 +387,7 @@ static int gpio_set(int level)
 static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 {
 	u32 reg;
+#if 0
 	ktime_t ktime;
 	unsigned long delay_in_ns=5000000L;
 
@@ -393,13 +395,22 @@ static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 	gnTimerS++;
 	hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 	gpio_set(0);
-
+#endif
 	reg = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 	reg |= SPI_IMX2_3_CTRL_XCH;
         //printk("   spidev(trigger) ctrl reg: 0x%08X\n",reg);
 	writel(reg, spi_imx->base + SPI_IMX2_3_CTRL);
 }
 
+static void hrt_start(struct spi_imx_data *spi_imx)
+{
+	ktime_t ktime;
+
+	ktime = ktime_set(0,spi_imx->timeoutNS);
+	gnTimerS++;
+	hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
+	gpio_set(0);
+}
 static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 		struct spi_imx_config *config)
 {
@@ -422,7 +433,12 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 	if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
-	//printk(KERN_DEBUG"%s  speed_hz:%d\n",__FUNCTION__,config->speed_hz);
+	if(spi_imx->slave==0){
+		spi_imx->timeoutNS = 2016000000L/config->speed_hz;
+		spi_imx->timeoutNS = spi_imx->timeoutNS << 12;
+	}
+	else spi_imx->timeoutNS=5000000L;
+	printk(KERN_DEBUG"%s  speed_hz:%d   delay.ns:%ld\n",__FUNCTION__,config->speed_hz,spi_imx->timeoutNS);
 	/* set clock speed */
 	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2 );
 
@@ -1004,18 +1020,6 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 	
 }
-#if 0
-static int gpio_set(int level)
-{
-	struct spi_imx_data *spi_imx = gpspi[1];
-	int gpio = spi_imx->chipselect[spi->chip_select];
-
-	if (gpio >= 0)
-		gpio_direction_output(gpio, level);
-
-	return 0;
-}
-#endif
 enum hrtimer_restart timer5ms_callback(struct hrtimer *timer)
 {
 	gpio_set(1);
@@ -1035,6 +1039,7 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 	//timer5ms.function = &timer5ms_callback;
 	gnTimerE++;
 	hrtimer_cancel(&timer5ms);
+	hrt_start(spi_imx);
 
 	gnRDYint++;
 	s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
@@ -1515,6 +1520,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	gpspi[gnspi++]=spi_imx;
 	printk(KERN_DEBUG"%s add gnspi: %d\n",__FUNCTION__,gnspi);
 
+	if(spi_imx->slave==0){  ////////////// master 
+	gpio_request_one(7, GPIOF_OUT_INIT_LOW, "spi.master.timeout_gpio7");
 	ret = gpio_request_one(mxc_platform_info->rdy_gpio, GPIOF_IN, "spi.master.rdy");
 	if (ret) {
 		printk(KERN_DEBUG"%s request.rdy.gpio.error\n",__FUNCTION__);
@@ -1527,6 +1534,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		if (ret) {
 			printk(KERN_DEBUG"%s request.rdy.gpio.irq.error\n",__FUNCTION__);
 		}
+	}
 	}
 	spi_imx->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(spi_imx->clk)) {
