@@ -957,8 +957,10 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		buf2fifo(spi_imx);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( s ) return IRQ_HANDLED;
-		printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
+		//printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
 		spi_imx->pkgSent=0;
+		gnRDYint=0;
+		gnSent=0;
 #if 0
 		//ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		//ctrl &= ~0x00030000;
@@ -1023,7 +1025,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 enum hrtimer_restart timer5ms_callback(struct hrtimer *timer)
 {
 	gpio_set(1);
-	printk(KERN_DEBUG"%s  timerout start:%d cancel:%d   pkgSent:%d\n",__FUNCTION__,gnTimerS,gnTimerE,gnSent);
+	printk(KERN_DEBUG"%s  timerout start:%d cancel:%d   pkgSent:%d  numRDY:%d\n",__FUNCTION__,gnTimerS,gnTimerE,gnSent,gnRDYint);
 	return HRTIMER_NORESTART;
 }
 static irqreturn_t master_rdy_isr(int irq, void *dev_id)
