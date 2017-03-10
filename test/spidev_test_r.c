@@ -37,6 +37,7 @@ static uint32_t zz = 252;// tx size
 static uint32_t ll = 1;// tx size
 static uint16_t delay=0;
 static uint32_t delayus=0;   //usec
+static int noprint=1;
 
 static void transfer(int fd,int vStart)
 {
@@ -88,12 +89,14 @@ static void transfer(int fd,int vStart)
 	if (ret < 1)
 		pabort("can't send spi message");
 
+	if(noprint==0){
 	//for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
 	for (ret = 0; ret < zz; ret++) {
 		//if(ret>5 && ret <zz-6)continue;
 		printf(" %02x", rx[ret] & 0x0ff);
 	}
 	puts("");
+	}
 }
 
 static void print_usage(const char *prog)
@@ -135,12 +138,15 @@ static void parse_opts(int argc, char *argv[])
 		};
 		int c;
 
-		c = getopt_long(argc, argv, "D:s:d:b:z:t:lHOLC3NR", lopts, NULL);
+		c = getopt_long(argc, argv, "D:s:d:b:z:t:lHOLC3NRv", lopts, NULL);
 
 		if (c == -1)
 			break;
 
 		switch (c) {
+		case 'v':
+			noprint=0;
+			break;
 		case 'D':
 			device = optarg;
 			break;
