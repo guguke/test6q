@@ -148,6 +148,8 @@ struct spi_imx_data {
 	//int len2send;
 	// master mode
 	int txbuf[RX_1000>>2];
+	int buf256[64];
+	int txBlank;
 	int txin;
 	int txout;
 	int txcount;
@@ -894,6 +896,29 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+static int blank2fifo(struct spi_imx_data *spi_imx)
+{
+	void *p = (void*)spi_imx->buf256;
+	int *pi=(int*)p;
+	int nByte=0;
+	int c;
+	int n63,i;
+	unsigned int s;
+
+	n63 = ( spi_imx->len_now + 3 ) >> 2;
+	for(i=0;i<n63;i++){
+	s= 0x4 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.full
+	if( s ){
+		printk(KERN_DEBUG"%s    blank2fifo error !!!!!!!!!!!!!\n",__FUNCTION__);
+		break;//   error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	}
+	writel(*pi, spi_imx->base + MXC_CSPITXDATA);
+	nByte++;
+	}
+	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
+	spi_imx->txBlank++;
+	return nByte;
+}
 static int buf2fifo(struct spi_imx_data *spi_imx)
 {
 	void *p = (void*)spi_imx->txbuf;
@@ -916,6 +941,7 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 	nByte+=4;
 	}
 	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
+	if(nByte>0)spi_imx->txBlank=0;
 	return nByte;
 }
 static int txReadFifo(struct spi_imx_data *spi_imx)
@@ -942,7 +968,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
-	int nByte;
+	int nByte,c;
 	u32 ctrl;
 	//ktime_t ktime;
 	//unsigned long delay_in_ns=5000000L;
@@ -979,23 +1005,23 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		//hrtimer_cancel(&timer5ms);
 		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
-		if(s){
-			spi_imx->pkgSent=-2;
-			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
-			printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
-		}
-#if 0
-		else{
-			if(spi_imx->pkgSent==1){
-			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
-			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-			//ctrl |= 0x00020000;//low level
-			ctrl |= 0x00010000;// falling edge
-			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+		if(s){  // blank 
+			c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+			if(c){
+				buf2fifo(spi_imx);
+				return IRQ_HANDLED;
 			}
-			spi_imx->devtype_data.trigger(spi_imx);
+			// fifo.blank , buf.blank , blank.overflow
+			if(spi_imx->txBlank>10){
+				spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
+				printk(KERN_DEBUG"%s   txrcv==0 numSent:%d    last.buf2fifo:%d  txbuf.len:%d  nRDY:%d\n",__FUNCTION__,gnSent,nByte,c,gnRDYint);
+				spi_imx->pkgSent=-2;
+				spi_imx->txBlank=0;
+			}
+			else{
+				blank2fifo(spi_imx);
+			}
 		}
-#endif
 		return IRQ_HANDLED;
 	}
 
@@ -1024,14 +1050,23 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 }
 enum hrtimer_restart timer5ms_callback(struct hrtimer *timer)
 {
+	struct spi_imx_data *spi_imx = gpspi[0];
 	gpio_set(1);
-	printk(KERN_DEBUG"%s  timerout start:%d cancel:%d   pkgSent:%d  numRDY:%d\n",__FUNCTION__,gnTimerS,gnTimerE,gnSent,gnRDYint);
+	if(spi_imx->pkgSent>0){
+		printk(KERN_DEBUG"%s  trigger!!!!!!!!!!   pkgSent:%d  numRDY:%d   txrcv:%d       slave:%d\n",__FUNCTION__,gnSent,gnRDYint,spi_imx->txrcv,spi_imx->slave);
+		hrt_start(spi_imx);
+		spi_imx->devtype_data.trigger(spi_imx);
+		gnSending=1;
+		return HRTIMER_NORESTART;
+	}
+	printk(KERN_DEBUG"%s   pkgSent:%d  numRDY:%d   txrcv:%d       slave:%d\n\n",__FUNCTION__,gnSent,gnRDYint,spi_imx->txrcv,spi_imx->slave);
 	return HRTIMER_NORESTART;
 }
 static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 {
 	//ktime_t ktime;
 	//unsigned long delay_in_ns=5000000L;
+	int c;
 
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
@@ -1045,7 +1080,7 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 
 	gnRDYint++;
 	s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
-	if(s==0){
+	if(s==0){// not blank
 		//gnTimerS++;
 		//hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 		//printk(KERN_DEBUG"%s  trigger    \n",__FUNCTION__);
@@ -1054,8 +1089,9 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 			gnSending=1;
 		}
 	}
-	else{
-		printk(KERN_DEBUG"%s  txfifo.blank, num.rdy.interrupt:%d  timer.s:%d .e:%d  \n",__FUNCTION__,gnRDYint,gnTimerS,gnTimerE);
+	else{  // txfifo blank
+		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		printk(KERN_DEBUG"%s  txfifo.blank, txbuf.len:%d  num.rdy.interrupt:%d \n",__FUNCTION__,c,gnRDYint);
 		//hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 	}
 	return IRQ_HANDLED;
@@ -1530,8 +1566,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	}
 	else {
 	ret = request_irq(gpio_to_irq(mxc_platform_info->rdy_gpio), master_rdy_isr,
-				 //IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
-				 IRQF_TRIGGER_RISING,
+				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
+				 //IRQF_TRIGGER_RISING,
 				 "spi.rdy", spi_imx);
 		if (ret) {
 			printk(KERN_DEBUG"%s request.rdy.gpio.irq.error\n",__FUNCTION__);
