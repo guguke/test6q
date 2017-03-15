@@ -1304,7 +1304,7 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 		//return transfer->len;
 	}
 	init_completion(&spi_imx->xfer_done);
-	wait_for_completion_interruptible(&spi_imx->xfer_done);
+	wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 
 	return transfer->len;
 }
@@ -1352,7 +1352,7 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 	for(;;){
 	init_completion(&spi_imx->xfer_done);
 	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
-	wait_for_completion_interruptible(&spi_imx->xfer_done);
+	wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 	if(spi_imx->slave){
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
