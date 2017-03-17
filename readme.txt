@@ -1,5 +1,6 @@
 
-
+5. b4
+       add cs2.gpio
 4. v3.0.3
          master.falling.
            write.wait_timeout
