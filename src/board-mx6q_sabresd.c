@@ -2006,8 +2006,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
-	gpio_request(SABRESD_SENSOR_EN, "sensor-en");
-	gpio_direction_output(SABRESD_SENSOR_EN, 1);
+	//gpio_request(SABRESD_SENSOR_EN, "sensor-en");
+	//gpio_direction_output(SABRESD_SENSOR_EN, 1);
 
 	/* enable ecompass intr */
 	gpio_request(SABRESD_eCOMPASS_INT, "ecompass-int");

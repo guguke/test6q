@@ -135,6 +135,7 @@ struct spi_imx_data {
 
 	struct spi_imx_devtype_data devtype_data;
 	// slave mode
+	int wordsFrame;
 	int slave;
 	int rxbuf[RX_1000>>2];
 	int rxin;
@@ -214,6 +215,7 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 			p += spi_imx->rxin;					\
 			*(type*)p = val;					\
 			spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  sizeof(type));				\
+			spi_imx->wordsFrame++;				\
 		}							\
 		else{							\
 			spi_imx->disable = 1;				\
@@ -1070,6 +1072,16 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 	
 }
+static irqreturn_t slave_cs_isr(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+	int i;
+
+	//printk(KERN_DEBUG"%s    slave_cs_isr rcv.words.frame:%d\n",__FUNCTION__,spi_imx->wordsFrame);
+	spi_imx->wordsFrame = 0;
+	return IRQ_HANDLED;
+	
+}
 enum hrtimer_restart timer1ms_callback(struct hrtimer *timer)
 {
 	struct spi_imx_data *spi_imx = gpspi[0];
@@ -1603,6 +1615,13 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 			printk(KERN_DEBUG"%s request.rdy.gpio.irq.error\n",__FUNCTION__);
 		}
 	}
+	}
+	else{
+	ret = gpio_request_one(32+31, GPIOF_IN, "spi.slave.cs.input.gpio231");/////////////////// gpio(2,31)
+	ret = request_irq(gpio_to_irq(32+31), slave_cs_isr,
+				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
+				 //IRQF_TRIGGER_RISING,
+				 "spi.slave.cs", spi_imx);
 	}
 	spi_imx->clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(spi_imx->clk)) {
