@@ -135,6 +135,10 @@ struct spi_imx_data {
 
 	struct spi_imx_devtype_data devtype_data;
 	// slave mode
+	int frame256[128];// rcv frame , max:63
+	int offsetFrame;
+	int frameReset;
+
 	int wordsFrame;
 	int slave;
 	int rxbuf[RX_1000>>2];
@@ -875,48 +879,39 @@ static int blank2tx(struct spi_imx_data *spi_imx)
 	if(reg==0) return 0;
 	return 1;// blank 
 }
+static int frame2buf(int len, struct spi_imx_data *spi_imx)
+{
+	int c;
+
+	if(len<1) return 0;
+	c= RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
+	if(c>(RX_1000-800)) return 0;
+	memcpy(spi_imx->rxbuf+spi_imx->txin,spi_imx->frame256,(len<<2)+4);					
+	spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  0x100);
+	complete(&spi_imx->xfer_done);								\
+	return len;
+}
 static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
-	int c,reg,reg1;
-	int i;
+	int n63;
+	n63 = ( spi_imx->len_now + 3 ) >> 2;
+	if(n63>63)n63=63;
 
-	//printk(KERN_DEBUG"%s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
-	//reg=readl(spi_imx->base + SPI_IMX2_3_STAT);
-	//reg1=readl(spi_imx->base + SPI_IMX2_3_TESTREG);
-	//printk(" isr slave , stat flag : 0x%08X    test.reg: 0x%08X\n",reg,reg1);
-	//printk("   isr: %d     spi_imx->count : %d \n",spi_imx->slave,spi_imx->count);
 	reg = spi_imx->devtype_data.rx_available(spi_imx);
-		//printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
 	while ( reg  ) {
-	//if ( reg & 0x10) {
-	//if ( reg ) {
-		//for(c=0;c<0x20;c++) 
-			spi_imx->rx(spi_imx);
+		if(spi_imx->frameReset){
+			spi_imx->offsetFrame=0;
+			spi_imx->frameReset=0;
+		}
+		spi_imx->rx(spi_imx);
+		if(spi_imx->offsetFrame>=63){
+			spi_imx->frame256[0]=n63;
+			frame2buf(n63,spi_imx);
+			spi_imx->offsetFrame=0;
+		}
 		reg = spi_imx->devtype_data.rx_available(spi_imx);
-		//printk("   isr slave: %d     reg_stat: 0x%08X \n",spi_imx->slave,reg);
-	//while (spi_imx->devtype_data.rx_available(spi_imx)) {
-		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
-		//spi_imx->rx(spi_imx);
 	}
-#if 0
-	reg=readl(spi_imx->base + SPI_IMX2_3_STAT) & SPI_IMX2_3_STAT_TC;
-	printk(" isr TC flag : 0x%08X\n",reg);
-	if(reg){
-		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);
-	}
-#endif
-			c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
-			if(c>=spi_imx->txfifo){															\
-				complete(&spi_imx->xfer_done);								\
-			}																\
-
-		//spi_imx->devtype_data.intctrl( spi_imx, MXC_INT_RR);
-		//printk("   isr: %d     itxfifo_return   spi_imx->txfifo : %d \n",spi_imx->slave,spi_imx->txfifo);
-
-	//if( spi_imx->slave == 0 ) spi_imx->devtype_data.intctrl(spi_imx, 0);
-	//printk("   isr: %d   complete    done  \n",spi_imx->slave);
-	//complete(&spi_imx->xfer_done);
 
 	return IRQ_HANDLED;
 }
@@ -1079,6 +1074,7 @@ static irqreturn_t slave_cs_isr(int irq, void *dev_id)
 
 	//printk(KERN_DEBUG"%s    slave_cs_isr rcv.words.frame:%d\n",__FUNCTION__,spi_imx->wordsFrame);
 	spi_imx->wordsFrame = 0;
+	spi_imx->frameReset=1;
 	return IRQ_HANDLED;
 	
 }
@@ -1349,6 +1345,10 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 
 	return transfer->len;
 }
+static int buf2rx(void *p,int len, struct spi_imx_data *spi_imx)
+{
+
+}
 static int spi_imx_transfer_slave(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
@@ -1521,6 +1521,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->rxcount=0;
 	spi_imx->rxin=0;
 	spi_imx->rxout=0;
+	spi_imx->offsetFrame=0;
+	spi_imx->frameReset=1;
 	if(master->bus_num==1) spi_imx->slave = 1;
 	else spi_imx->slave=0;
 	spi_imx->disable = 1;
