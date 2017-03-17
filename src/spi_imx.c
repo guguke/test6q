@@ -109,6 +109,7 @@ struct spi_imx_devtype_data {
 	unsigned int fifosize;
 };
 static struct hrtimer timer5ms;
+static struct hrtimer timer1ms;
 static int gnSending=0;
 static int gnTimerS=0,gnTimerE=0;
 static int gnSent=0;
@@ -375,6 +376,17 @@ static void __maybe_unused spi_imx2_3_intctrl(struct spi_imx_data *spi_imx, int 
 	writel(val, spi_imx->base + SPI_IMX2_3_INT);
 }
 
+static int gpio8_set(int level)
+{
+#if 1
+	//struct spi_imx_data *spi_imx = gpspi[1];
+	int gpio = 8;//59;//spi_imx->chipselect[spi->chip_select];   gpio(2,27)  , 32+27
+
+	if (gpio >= 0)
+		gpio_direction_output(gpio, level);
+#endif
+	return 0;
+}
 static int gpio_set(int level)
 {
 #if 1
@@ -385,6 +397,14 @@ static int gpio_set(int level)
 		gpio_direction_output(gpio, level);
 #endif
 	return 0;
+}
+static void hrt_start1ms(struct spi_imx_data *spi_imx)
+{
+	ktime_t ktime;
+
+	ktime = ktime_set(0,spi_imx->timeoutNS>>2);
+	hrtimer_start(&timer1ms,ktime,HRTIMER_MODE_REL);
+	gpio8_set(1);
 }
 static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 {
@@ -398,6 +418,8 @@ static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 	hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 	gpio_set(0);
 #endif
+	hrt_start1ms(spi_imx);
+
 	reg = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 	reg |= SPI_IMX2_3_CTRL_XCH;
         //printk("   spidev(trigger) ctrl reg: 0x%08X\n",reg);
@@ -1048,6 +1070,13 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 	
 }
+enum hrtimer_restart timer1ms_callback(struct hrtimer *timer)
+{
+	struct spi_imx_data *spi_imx = gpspi[0];
+	gpio8_set(0);
+	//printk(KERN_DEBUG"%s   pkgSent:%d  numRDY:%d   txrcv:%d       slave:%d\n\n",__FUNCTION__,gnSent,gnRDYint,spi_imx->txrcv,spi_imx->slave);
+	return HRTIMER_NORESTART;
+}
 enum hrtimer_restart timer5ms_callback(struct hrtimer *timer)
 {
 	struct spi_imx_data *spi_imx = gpspi[0];
@@ -1560,6 +1589,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 
 	if(spi_imx->slave==0){  ////////////// master 
 	gpio_request_one(7, GPIOF_OUT_INIT_LOW, "spi.master.timeout_gpio7");
+	gpio_request_one(8, GPIOF_OUT_INIT_HIGH, "spi.master.timeout_gpio8");
 	ret = gpio_request_one(mxc_platform_info->rdy_gpio, GPIOF_IN, "spi.master.rdy");
 	if (ret) {
 		printk(KERN_DEBUG"%s request.rdy.gpio.error\n",__FUNCTION__);
@@ -1664,6 +1694,8 @@ static int __init spi_imx_init(void)
 	//ktime = ktime_set(0,delay_in_ns);
 	hrtimer_init(&timer5ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
 	timer5ms.function = &timer5ms_callback;
+	hrtimer_init(&timer1ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
+	timer1ms.function = &timer1ms_callback;
 	printk(KERN_DEBUG"%s init hrtimer \n",__FUNCTION__);
 
 	return platform_driver_register(&spi_imx_driver);
