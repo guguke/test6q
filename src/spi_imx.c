@@ -136,7 +136,7 @@ struct spi_imx_data {
 	struct spi_imx_devtype_data devtype_data;
 	// slave mode
 	int frame256[128];// rcv frame , max:63
-	int offsetFrame;
+	int offsetFrame;// int offset
 	int frameReset;
 
 	int wordsFrame;
@@ -213,21 +213,12 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	}								\
 	if(spi_imx->slave){						\
 		if(spi_imx->disable==0){				\
-		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
-		if(c<(RX_1000-800)){						\
-			p = (void*)spi_imx->rxbuf;					\
-			p += spi_imx->rxin;					\
-			*(type*)p = val;					\
-			spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  sizeof(type));				\
+			spi_imx->frame256[spi_imx->offsetFrame+1] = val;		\
+			spi_imx->offsetFrame++;						\
 			spi_imx->wordsFrame++;				\
 		}							\
 		else{							\
-			spi_imx->disable = 1;				\
 			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
-			spi_imx->rxin = 0;							\
-			spi_imx->rxout = 0;							\
-			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
-		}							\
 		}							\
 	}								\
 	else{								\
@@ -882,11 +873,14 @@ static int blank2tx(struct spi_imx_data *spi_imx)
 static int frame2buf(int len, struct spi_imx_data *spi_imx)
 {
 	int c;
+	void *p;
 
 	if(len<1) return 0;
 	c= RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 	if(c>(RX_1000-800)) return 0;
-	memcpy(spi_imx->rxbuf+spi_imx->txin,spi_imx->frame256,(len<<2)+4);					
+	p = (void*)spi_imx->rxbuf;
+	p += spi_imx->rxin;
+	memcpy( p, spi_imx->frame256, (len<<2)+4);					
 	spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  0x100);
 	complete(&spi_imx->xfer_done);								\
 	return len;
@@ -894,7 +888,7 @@ static int frame2buf(int len, struct spi_imx_data *spi_imx)
 static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
-	int n63;
+	int reg,n63;
 	n63 = ( spi_imx->len_now + 3 ) >> 2;
 	if(n63>63)n63=63;
 
@@ -906,9 +900,10 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		}
 		spi_imx->rx(spi_imx);
 		if(spi_imx->offsetFrame>=63){
-			spi_imx->frame256[0]=n63;
+			spi_imx->frame256[0]=n63<<2;
 			frame2buf(n63,spi_imx);
 			spi_imx->offsetFrame=0;
+			printk(KERN_DEBUG"%s    offset.frame >= 63   rxin:%d\n",__FUNCTION__,spi_imx->rxin);
 		}
 		reg = spi_imx->devtype_data.rx_available(spi_imx);
 	}
@@ -1202,7 +1197,7 @@ static int spi_imx_setupxfer_master(struct spi_device *spi,
 			break;
 		}
 		else{
-			if(blank2tx){// not same,blank
+			if(blank2tx(spi_imx)){// not same,blank
 				spi_imx->retcfg=1;// cfg.ok
 				do_config(spi_imx,&config);
 				break;
@@ -1250,7 +1245,7 @@ static int spi_imx_setupxfer_slave(struct spi_device *spi, struct spi_transfer *
 			break;
 		}
 		else{
-			if(blank2rx){// not same,blank
+			if(blank2rx(spi_imx)){// not same,blank
 				spi_imx->retcfg=1;// cfg.ok
 				do_config(spi_imx,&config);
 				break;
@@ -1309,9 +1304,9 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 static int spi_imx_transfer_master(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
-	int c,c1;
-	void *p;
-	int *pi;
+	//int c,c1;
+	//void *p;
+	//int *pi;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,transfer->len);
 	//return transfer->len;
@@ -1347,14 +1342,27 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 }
 static int buf2rx(void *p,int len, struct spi_imx_data *spi_imx)
 {
+	int n;
+	void *pbuf;
+	if(spi_imx->rxin == spi_imx->rxout ) return 0;// 
+	pbuf = (void*)spi_imx->rxbuf;
+	n = spi_imx->rxbuf[spi_imx->rxout>>2];// buf len
+	printk(KERN_DEBUG"%s    rxin:%d rxout:%d frame.len:%d\n",__FUNCTION__,spi_imx->rxin,spi_imx->rxout,n);
+	if(n<1){
+		spi_imx->rxout = RX_FFF & (spi_imx->rxout + 0x100);
+		return 0;
+	}
+	if(n>252)n=252;
+	if(n>len)n=len;
+	memcpy(p,pbuf+4,n);
+	spi_imx->rxout = RX_FFF & (spi_imx->rxout + 0x100);
+	return n;
 
 }
 static int spi_imx_transfer_slave(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
-	int c,c1;
-	void *p;
-	int *pi;
+	int n;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
 
@@ -1364,62 +1372,17 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 	spi_imx->txfifo = 0;
 
 	if(spi_imx->retcfg==2) return 0;// config.error
-	//init_completion(&spi_imx->xfer_done);
 
 	spi_imx->disable = 0;
-	if(spi_imx->slave){
-		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
-		//printk("   wait 1- c: %d \n",c);
-		if(c>=transfer->len){			
-#if 1
-			p = (void*)spi_imx->rxbuf;					
-			p += spi_imx->rxout;
-			c1 = spi_imx->rxout + transfer->len;
-			pi = (int*)spi_imx->rxbuf;					
-			pi += spi_imx->rxout>>2;
-			//printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<RX_1000){
-			memcpy(spi_imx->rx_buf,p,transfer->len);					
-			}
-			else{
-			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
-			}
-#endif
-			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
-			return transfer->len;
-		}
-	}
+	n=buf2rx(spi_imx->rx_buf,transfer->len,spi_imx);
+	if(n>0) return n;
 	for(;;){
-	init_completion(&spi_imx->xfer_done);
-	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
-	wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
-	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
-	if(spi_imx->slave){
-		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
-		//printk("   wait  c: %d \n",c);
-		if(c<transfer->len)continue;			
-#if 1
-			p = (void*)spi_imx->rxbuf;					
-			p += spi_imx->rxout;
-			c1 = spi_imx->rxout + transfer->len;
-			pi = (int*)spi_imx->rxbuf;					
-			pi += spi_imx->rxout>>2;
-			//printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<RX_1000){
-			memcpy(spi_imx->rx_buf,p,transfer->len);					
-			}
-			else{
-			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
-			}
-#endif
-			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
-			break;
+		init_completion(&spi_imx->xfer_done);
+		wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+		n=buf2rx(spi_imx->rx_buf,transfer->len,spi_imx);
+		if(n>0) return n;
 	}
-	}
-
-	return transfer->len;
+	return n;
 }
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
