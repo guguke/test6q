@@ -154,7 +154,7 @@ struct spi_imx_data {
 	//int len2send;
 	// master mode
 	int txbuf[RX_1000>>2];
-	int buf256[64];
+	int buf256[64];//  blank
 	int txBlank;
 	int txin;
 	int txout;
@@ -193,6 +193,8 @@ struct spi_imx_data {
 	if(reg){								\
 		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}									\
+	void *p;								\
+	int c,									\
 	
 #endif
 
@@ -200,8 +202,7 @@ struct spi_imx_data {
 static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 {									\
 	unsigned int val = readl(spi_imx->base + MXC_CSPIRXDATA);	\
-	void *p;								\
-	int c,reg,reg1,treg,dreg,creg;								\
+	int reg,reg1,treg,dreg,creg;								\
 	if(spi_imx->slave){						\
 	reg=readl(spi_imx->base + SPI_IMX2_3_STAT);	\
 	reg1 = reg & SPI_IMX2_3_STAT_TC;	\
@@ -819,7 +820,7 @@ static void spi_imx_chipselect(struct spi_device *spi, int is_active)
 
 	gpio_set_value(gpio, dev_is_lowactive ^ active);
 }
-
+#if 0
 static void spi_imx_push_slave(struct spi_imx_data *spi_imx)
 {
 	int reg;								
@@ -833,7 +834,7 @@ static void spi_imx_push_slave(struct spi_imx_data *spi_imx)
 }
 static void spi_imx_push(struct spi_imx_data *spi_imx)
 {
-	int i;
+	//int i;
 	//printk("  func push : txfifo: %d     fifosize: %d \n",   spi_imx->txfifo, spi_imx->devtype_data.fifosize);
 	while (spi_imx->txfifo < spi_imx->devtype_data.fifosize) {
 	//for (i=0;i<20 && spi_imx->txfifo < spi_imx->devtype_data.fifosize;i++) {
@@ -854,6 +855,7 @@ static void spi_imx_mypush(struct spi_imx_data *spi_imx)
 		spi_imx->txfifo++;
 	}
 }
+#endif
 static int blank2rx(struct spi_imx_data *spi_imx)
 {
 	int reg;
@@ -876,6 +878,7 @@ static int frame2buf(int len, struct spi_imx_data *spi_imx)
 	void *p;
 
 	if(len<1) return 0;
+	if(spi_imx->frame256[1]==0x55aaaa55 && spi_imx->frame256[63]==0x55aaaa55) return 0;
 	c= RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 	if(c>(RX_1000-800)) return 0;
 	p = (void*)spi_imx->rxbuf;
@@ -903,7 +906,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 			spi_imx->frame256[0]=n63<<2;
 			frame2buf(n63,spi_imx);
 			spi_imx->offsetFrame=0;
-			printk(KERN_DEBUG"%s    offset.frame >= 63   rxin:%d\n",__FUNCTION__,spi_imx->rxin);
+			//printk(KERN_DEBUG"%s    offset.frame >= 63   rxin:%d\n",__FUNCTION__,spi_imx->rxin);
 		}
 		reg = spi_imx->devtype_data.rx_available(spi_imx);
 	}
@@ -915,7 +918,7 @@ static int blank2fifo(struct spi_imx_data *spi_imx)
 	void *p = (void*)spi_imx->buf256;
 	int *pi=(int*)p;
 	int nByte=0;
-	int c;
+	//int c;
 	int n63,i;
 	unsigned int s;
 
@@ -926,7 +929,7 @@ static int blank2fifo(struct spi_imx_data *spi_imx)
 		printk(KERN_DEBUG"%s    blank2fifo error !!!!!!!!!!!!!\n",__FUNCTION__);
 		break;//   error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	}
-	writel(*pi, spi_imx->base + MXC_CSPITXDATA);
+	writel(pi[i], spi_imx->base + MXC_CSPITXDATA);
 	nByte++;
 	}
 	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
@@ -983,7 +986,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
 	int nByte,c;
-	u32 ctrl;
+	//u32 ctrl;
 	//ktime_t ktime;
 	//unsigned long delay_in_ns=5000000L;
 
@@ -1044,7 +1047,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 // isr_main
 static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
-	struct spi_imx_data *spi_imx = dev_id;
+	//struct spi_imx_data *spi_imx = dev_id;
 	struct spi_imx_data *pspi;
 	int i;
 
@@ -1065,7 +1068,7 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 static irqreturn_t slave_cs_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
-	int i;
+	//int i;
 
 	//printk(KERN_DEBUG"%s    slave_cs_isr rcv.words.frame:%d\n",__FUNCTION__,spi_imx->wordsFrame);
 	spi_imx->wordsFrame = 0;
@@ -1075,7 +1078,7 @@ static irqreturn_t slave_cs_isr(int irq, void *dev_id)
 }
 enum hrtimer_restart timer1ms_callback(struct hrtimer *timer)
 {
-	struct spi_imx_data *spi_imx = gpspi[0];
+	//struct spi_imx_data *spi_imx = gpspi[0];
 	gpio8_set(0);
 	//printk(KERN_DEBUG"%s   pkgSent:%d  numRDY:%d   txrcv:%d       slave:%d\n\n",__FUNCTION__,gnSent,gnRDYint,spi_imx->txrcv,spi_imx->slave);
 	return HRTIMER_NORESTART;
@@ -1274,7 +1277,15 @@ static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
 
 	return 0;
 }
-static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
+static int tx2blank(const void *p,int len,struct spi_imx_data *spi_imx)
+{
+	int n;
+	if(len>252)n=252;
+	else n=len;
+	memcpy(spi_imx->buf256,p,len);
+	return len;
+}
+static int tx2buf(const void *p,int len,struct spi_imx_data *spi_imx)
 {
 	int c,c1;
 	void *pdes;
@@ -1321,7 +1332,7 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	if(spi_imx->pkgSent==-2){
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		tx2blank(transfer->tx_buf,transfer->len,spi_imx);
 		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
 		//if(c > (transfer->len<<1) ) {
@@ -1333,6 +1344,7 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	}
 	else{// sending 
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		tx2blank(transfer->tx_buf,transfer->len,spi_imx);
 		//return transfer->len;
 	}
 	init_completion(&spi_imx->xfer_done);
@@ -1347,14 +1359,14 @@ static int buf2rx(void *p,int len, struct spi_imx_data *spi_imx)
 	if(spi_imx->rxin == spi_imx->rxout ) return 0;// 
 	pbuf = (void*)spi_imx->rxbuf;
 	n = spi_imx->rxbuf[spi_imx->rxout>>2];// buf len
-	printk(KERN_DEBUG"%s    rxin:%d rxout:%d frame.len:%d\n",__FUNCTION__,spi_imx->rxin,spi_imx->rxout,n);
+	//printk(KERN_DEBUG"%s    rxin:%d rxout:%d frame.len:%d\n",__FUNCTION__,spi_imx->rxin,spi_imx->rxout,n);
 	if(n<1){
 		spi_imx->rxout = RX_FFF & (spi_imx->rxout + 0x100);
 		return 0;
 	}
 	if(n>252)n=252;
 	if(n>len)n=len;
-	memcpy(p,pbuf+4,n);
+	memcpy(p,pbuf+spi_imx->rxout+4,n);
 	spi_imx->rxout = RX_FFF & (spi_imx->rxout + 0x100);
 	return n;
 
@@ -1375,14 +1387,14 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 
 	spi_imx->disable = 0;
 	n=buf2rx(spi_imx->rx_buf,transfer->len,spi_imx);
-	if(n>0) return n;
+	if(n>0) return transfer->len;
 	for(;;){
 		init_completion(&spi_imx->xfer_done);
 		wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 		n=buf2rx(spi_imx->rx_buf,transfer->len,spi_imx);
-		if(n>0) return n;
+		if(n>0) return transfer->len;
 	}
-	return n;
+	return transfer->len;
 }
 static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
@@ -1502,6 +1514,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->retcfg = 0;
 	spi_imx->pkgSent = -2;
 	spi_imx->txrcv=0;
+	for(i=0;i<64;i++)spi_imx->buf256[i]=0x55aaaa55;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
