@@ -919,6 +919,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max17135_pdata,
 	},
 	{
+		I2C_BOARD_INFO("max7359", 0x30),
+		.irq = gpio_to_irq(53),/////////////////// gpio(2,21)
+	},
+	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT1),
 	},
