@@ -709,6 +709,15 @@ static struct regulator_consumer_supply v3p3_consumers[] = {
 	},
 };
 
+struct max7359_keypad {
+	/* matrix key code map */
+	unsigned short keycodes[64];
+
+	struct input_dev *input_dev;
+	struct i2c_client *client;
+};
+static struct max7359_keypad max7359_data;
+
 static struct regulator_init_data max17135_init_data[] = {
 	{
 		.constraints = {
@@ -919,8 +928,9 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &max17135_pdata,
 	},
 	{
-		I2C_BOARD_INFO("max7359", 0x30),
+		I2C_BOARD_INFO("max7359", 0x38),
 		.irq = gpio_to_irq(53),/////////////////// gpio(2,21)
+		.platform_data = &max7359_data,
 	},
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),

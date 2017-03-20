@@ -4,4 +4,4 @@
 #cp spi_imx.c linux/drivers/spi/
 #cp spi.h linux/arch/arm/plat-mxc/include/mach/
 
-#cp max7359_keypad.c linux/drivers/input/keyboard/max7359_keypad.c
+cp max7359_keypad.c linux/drivers/input/keyboard/

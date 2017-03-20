@@ -117,6 +117,7 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 	release = val & 0x40;
 
 	code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
+	printk(KERN_DEBUG"%s   code:%d\n",__FUNCTION__,code);
 
 	dev_dbg(&keypad->client->dev,
 		"key[%d:%d] %s\n", row, col, release ? "release" : "press");
@@ -192,6 +193,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 		dev_err(&client->dev, "The irq number should not be zero\n");
 		return -EINVAL;
 	}
+	printk(KERN_ERR"%s       1\n",__FUNCTION__);
 
 	/* Detect MAX7359: The initial Keys FIFO value is '0x3F' */
 	ret = max7359_read_reg(client, MAX7359_REG_KEYFIFO);
@@ -199,6 +201,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to detect device\n");
 		return -ENODEV;
 	}
+	printk(KERN_ERR"%s       11\n",__FUNCTION__);
 
 	dev_dbg(&client->dev, "keys FIFO is 0x%02x\n", ret);
 
@@ -209,6 +212,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 		error = -ENOMEM;
 		goto failed_free_mem;
 	}
+	printk(KERN_ERR"%s       12\n",__FUNCTION__);
 
 	keypad->client = client;
 	keypad->input_dev = input_dev;
@@ -226,9 +230,11 @@ static int __devinit max7359_probe(struct i2c_client *client,
 
 	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
 	input_set_drvdata(input_dev, keypad);
+	printk(KERN_ERR"%s       13\n",__FUNCTION__);
 
 	max7359_build_keycode(keypad, keymap_data);
 
+	printk(KERN_ERR"%s       10\n",__FUNCTION__);
 	error = request_threaded_irq(client->irq, NULL, max7359_interrupt,
 				     IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 				     client->name, keypad);
@@ -243,13 +249,16 @@ static int __devinit max7359_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to register input device\n");
 		goto failed_free_irq;
 	}
+	printk(KERN_ERR"%s       2\n",__FUNCTION__);
 
 	/* Initialize MAX7359 */
 	max7359_initialize(client);
 
+	printk(KERN_ERR"%s       3\n",__FUNCTION__);
 	i2c_set_clientdata(client, keypad);
 	device_init_wakeup(&client->dev, 1);
 
+	printk(KERN_ERR"%s       4\n",__FUNCTION__);
 	return 0;
 
 failed_free_irq:
