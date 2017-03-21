@@ -117,7 +117,7 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 	release = val & 0x40;
 
 	code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
-	printk(KERN_DEBUG"%s   code:%d\n",__FUNCTION__,code);
+	printk(KERN_DEBUG"%s   code:%d   val:0x%02x\n",__FUNCTION__,code,val);
 
 	dev_dbg(&keypad->client->dev,
 		"key[%d:%d] %s\n", row, col, release ? "release" : "press");
@@ -167,7 +167,7 @@ static void max7359_close(struct input_dev *dev)
 static void max7359_initialize(struct i2c_client *client)
 {
 	max7359_write_reg(client, MAX7359_REG_CONFIG,
-		MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
+		//MAX7359_CFG_INTERRUPT | /* Irq clears after host read */
 		MAX7359_CFG_KEY_RELEASE | /* Key release enable */
 		MAX7359_CFG_WAKEUP); /* Key press wakeup enable */
 
@@ -234,7 +234,7 @@ static int __devinit max7359_probe(struct i2c_client *client,
 
 	max7359_build_keycode(keypad, keymap_data);
 
-	printk(KERN_ERR"%s       10\n",__FUNCTION__);
+	printk(KERN_ERR"%s       irq.num:%d\n",__FUNCTION__,client->irq);
 	error = request_threaded_irq(client->irq, NULL, max7359_interrupt,
 				     IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 				     client->name, keypad);

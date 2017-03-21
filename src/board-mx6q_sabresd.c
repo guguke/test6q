@@ -186,6 +186,7 @@
 #define SABRESD_EPDC_SDSHR	IMX_GPIO_NR(2, 29)
 #define SABRESD_EPDC_PWRCOM	IMX_GPIO_NR(2, 28)
 #define SABRESD_EPDC_PWRSTAT	IMX_GPIO_NR(2, 21)
+#define MAX7359_INT	IMX_GPIO_NR(2, 21)
 #define SABRESD_EPDC_PWRCTRL0	IMX_GPIO_NR(2, 20)
 #define SABRESD_EPDC_PWRCTRL1	IMX_GPIO_NR(2, 19)
 #define SABRESD_EPDC_PWRCTRL2	IMX_GPIO_NR(2, 18)
@@ -929,7 +930,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("max7359", 0x38),
-		.irq = gpio_to_irq(53),/////////////////// gpio(2,21)
+		.irq = gpio_to_irq(MAX7359_INT),/////////////////// gpio(2,21)
 		.platform_data = &max7359_data,
 	},
 	{
