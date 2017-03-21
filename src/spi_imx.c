@@ -1585,6 +1585,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		printk(KERN_DEBUG"%s request.rdy.gpio.error\n",__FUNCTION__);
 	}
 	else {
+	printk(KERN_DEBUG"%s rdy.gpio.irq.num %d\n",__FUNCTION__,gpio_to_irq(mxc_platform_info->rdy_gpio));
 	ret = request_irq(gpio_to_irq(mxc_platform_info->rdy_gpio), master_rdy_isr,
 				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
 				 //IRQF_TRIGGER_RISING,
@@ -1595,6 +1596,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	}
 	}
 	else{
+	printk(KERN_DEBUG"%s gpio(2,31).irq.num %d\n",__FUNCTION__,gpio_to_irq(32+31));
 	ret = gpio_request_one(32+31, GPIOF_IN, "spi.slave.cs.input.gpio231");/////////////////// gpio(2,31)
 	ret = request_irq(gpio_to_irq(32+31), slave_cs_isr,
 				 IRQF_TRIGGER_FALLING,//////////////////////////////////////////// | IRQF_TRIGGER_RISING,
