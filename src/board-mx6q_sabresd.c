@@ -140,6 +140,7 @@
 #define SABRESD_PCIE_WAKE_B	IMX_GPIO_NR(5, 20)
 
 #define SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
+#define MAX7359_INT	IMX_GPIO_NR(6, 7)
 #define SABRESD_CAP_TCH_INT0	IMX_GPIO_NR(6, 8)
 #define SABRESD_DISP_RST_B	IMX_GPIO_NR(6, 11)
 #define SABRESD_DISP_PWR_EN	IMX_GPIO_NR(6, 14)
@@ -186,7 +187,6 @@
 #define SABRESD_EPDC_SDSHR	IMX_GPIO_NR(2, 29)
 #define SABRESD_EPDC_PWRCOM	IMX_GPIO_NR(2, 28)
 #define SABRESD_EPDC_PWRSTAT	IMX_GPIO_NR(2, 21)
-#define MAX7359_INT	IMX_GPIO_NR(2, 21)
 #define SABRESD_EPDC_PWRCTRL0	IMX_GPIO_NR(2, 20)
 #define SABRESD_EPDC_PWRCTRL1	IMX_GPIO_NR(2, 19)
 #define SABRESD_EPDC_PWRCTRL2	IMX_GPIO_NR(2, 18)
@@ -933,10 +933,12 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.irq = gpio_to_irq(MAX7359_INT),/////////////////// gpio(2,21)
 		.platform_data = &max7359_data,
 	},
+#if 0
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT1),
 	},
+#endif
 	{
 		I2C_BOARD_INFO("mag3110", 0x0e),
 		.irq = gpio_to_irq(SABRESD_eCOMPASS_INT),
