@@ -117,7 +117,8 @@ static irqreturn_t max7359_interrupt(int irq, void *dev_id)
 	release = val & 0x40;
 
 	code = MATRIX_SCAN_CODE(row, col, MAX7359_ROW_SHIFT);
-	if(code!=63&&code!=62)printk(KERN_DEBUG"%s   code:%d   val:0x%02x\n",__FUNCTION__,code,val);
+	//if(code!=63&&code!=62)
+		printk(KERN_DEBUG"%s   code:%d   val:0x%02x\n",__FUNCTION__,code,val);
 
 	dev_dbg(&keypad->client->dev,
 		"key[%d:%d] %s\n", row, col, release ? "release" : "press");
