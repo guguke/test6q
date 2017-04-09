@@ -188,6 +188,11 @@ struct spi_imx_data {
 		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}									\
 	
+		else{							\
+			spi_imx->disable = 1;				\
+			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
+			spi_imx->rxin = 0;							\
+
 #endif
 
 #define MXC_SPI_BUF_RX(type)						\
@@ -216,7 +221,6 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 		}							\
 		else{							\
 			spi_imx->disable = 1;				\
-			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
 			spi_imx->rxin = 0;							\
 			spi_imx->rxout = 0;							\
 			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
@@ -1071,6 +1075,7 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
 
+	if(spi_imx->pkgSent<0) return IRQ_HANDLED;
 	//ktime = ktime_set(0,delay_in_ns);
 	//hrtimer_init(&timer5ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
 	//timer5ms.function = &timer5ms_callback;
@@ -1287,8 +1292,8 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	if(spi_imx->retcfg==2) return 0;// config.error
 	// retcfg.ok
 	if(spi_imx->pkgSent==-2){
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		tx2buf(spi_imx->buf256,transfer->len,spi_imx);
+		tx2buf(spi_imx->buf256,transfer->len,spi_imx);
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
 		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
@@ -1496,6 +1501,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->retcfg = 0;
 	spi_imx->pkgSent = -2;
 	spi_imx->txrcv=0;
+	for(i=0;i<64;i++)spi_imx->buf256[i]=0;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
