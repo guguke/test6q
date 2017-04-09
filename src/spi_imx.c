@@ -1106,6 +1106,7 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 	struct spi_imx_data *spi_imx = dev_id;
 	unsigned int s;
 
+	if(spi_imx->pkgSent<0) return IRQ_HANDLED;
 	//ktime = ktime_set(0,delay_in_ns);
 	//hrtimer_init(&timer5ms,CLOCK_MONOTONIC,HRTIMER_MODE_REL);
 	//timer5ms.function = &timer5ms_callback;
@@ -1280,6 +1281,7 @@ static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
 static int tx2blank(const void *p,int len,struct spi_imx_data *spi_imx)
 {
 	int n;
+	return len;
 	if(len>252)n=252;
 	else n=len;
 	memcpy(spi_imx->buf256,p,len);
@@ -1330,7 +1332,8 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	if(spi_imx->retcfg==2) return 0;// config.error
 	// retcfg.ok
 	if(spi_imx->pkgSent==-2){
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		tx2buf(spi_imx->buf256,transfer->len,spi_imx);
+		//tx2buf(transfer->tx_buf,transfer->len,spi_imx);
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
 		tx2blank(transfer->tx_buf,transfer->len,spi_imx);
 		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
@@ -1514,7 +1517,8 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->retcfg = 0;
 	spi_imx->pkgSent = -2;
 	spi_imx->txrcv=0;
-	for(i=0;i<64;i++)spi_imx->buf256[i]=0x55aaaa55;
+	//for(i=0;i<64;i++)spi_imx->buf256[i]=0x55aaaa55;
+	for(i=0;i<64;i++)spi_imx->buf256[i]=0;
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
