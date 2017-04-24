@@ -11,7 +11,7 @@ int main(void)
 {
     const char *dev =
         //"/dev/input/by-id/usb-_USB_Keyboard-event-kbd";
-	"/dev/input/event1";
+	"/dev/input/event0";
     struct input_event ev;
     ssize_t n;
     int fd;
