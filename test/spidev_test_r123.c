@@ -41,8 +41,12 @@ static int noprint=1;
 static int sum=-1;
 static int n_7a1=0; // sum 0,1,2,... 3e
 static int n_0=0; // sum 0,1,2,... 3e
-static int sum123=0x7a1;
+//static int sum123=0x7a1;///   00.01.02   sum0-251
+static int sum123=0x7994;///   02.03.04.05   sum4-251
+
 static int sum55=0x7a2;
+static int frame0=-1;
+static int gi=0;
 
 static void transfer(int fd,int vStart)
 {
@@ -52,7 +56,6 @@ static void transfer(int fd,int vStart)
 	int i;
 	int *pi;
 	int sum0=0;
-	int frame0=-1;
 #if 0
  = {
 		0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
@@ -105,16 +108,23 @@ static void transfer(int fd,int vStart)
 	puts("");
 	}
 	else{/////// print
+			if(pi[0]==1){
+			printf("\n   head ============");
+			for(ret=0;ret<zz;ret++){
+				printf(" %02x",rx[ret] & 0x0ff);
+			}
+			printf("\n");
+			}
 		sum0=0;
-		for(ret=1; ret<zz; ret++){
+		for(ret=4; ret<zz; ret++){
 			sum0+=rx[ret];
 		}
-		if(sum0==sum123) n_7a1++;
+		//if(sum0==sum123) n_7a1++;
 		if(sum0==0) n_0++;
 		if(sum!=sum0){
 			sum=sum0;
-			printf("\n sum 0x%x   num.correct:%d  num.zero:%d\n",sum0,n_7a1,n_0);
-			if(sum0!=0 && sum0!=0x7a1){
+			printf("\n     gi:%d  sum 0x%x   num.correct:%d  num.zero:%d\n",gi,sum0,n_7a1,n_0);
+			if(sum0!=0 && sum0!=sum123){
 			for(ret=0;ret<zz;ret++){
 				printf(" %02x",rx[ret] & 0x0ff);
 			}
@@ -122,17 +132,18 @@ static void transfer(int fd,int vStart)
 			}
 		}
 		else{
-			if((rx[0] & 0xffff0000) != (0xffff0000 & (frame0+0x10000))){
-				frame0 = rx[0];
-				printf("\n sum 0x%x   num.correct:%d  num.zero:%d\n",sum0,n_7a1,n_0);
-				if(sum0!=0 && sum0!=0x7a1){
+			if((pi[0] & 0xffff0000) != (0xffff0000 & (frame0+0x10000))){
+				printf("\n   gi:%d    serial.number error, sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
+				if(sum0!=0 && sum0!=sum123){
 					for(ret=0;ret<zz;ret++){
 						printf(" %02x",rx[ret] & 0x0ff);
 					}
 					printf("\n");
 				}
 			}
+			else n_7a1++;
 		}
+		frame0=pi[0];
 	}
 }
 
@@ -289,10 +300,10 @@ int main(int argc, char *argv[])
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
 	printf("\n");
-	for(i=0;i<ll;i++){
+	for(i=0;i<ll;i++,gi++){
 		if(delayus!=0) usleep(delayus);
-		printf("\r wait  loop(1..... : %d   num.correct:%d  num.zero:%d",i+1,n_7a1,n_0);
 	transfer(fd,i);
+		printf("\r rceived %d   num.correct:%d  num.zero:%d",gi+1,n_7a1,n_0);
 	}
 	printf("\n");
 
