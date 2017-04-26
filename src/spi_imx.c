@@ -1069,6 +1069,7 @@ static irqreturn_t slave_cs_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
 	//int i;
+	return IRQ_HANDLED;
 
 	//printk(KERN_DEBUG"%s    slave_cs_isr rcv.words.frame:%d\n",__FUNCTION__,spi_imx->wordsFrame);
 	spi_imx->wordsFrame = 0;
