@@ -48,6 +48,28 @@ static int sum55=0x7a2;
 static int frame0=-1;
 static int gi=0;
 
+#define FIFO_INT_SIZE 0x400
+static int idxW=0;
+static int idxR=0;
+static int gfifo[FIFO_INT_SIZE];
+static int gfifo252[252];
+
+static void check252()
+{
+
+}
+static void wfifo(int *pi)
+{
+	int i;
+	int len;
+	for(i=0;i<252;i++){
+		gfifo[idxW]=pi[i];
+		idxW=(FIFO_INT_SIZE-1) & (idxW+1);
+	}
+	len=(FIFO_INT_SIZE-1) & (FIFO_INT_SIZE+idxW-idxR);
+	if(len>=252)check252();
+}
+
 static void transfer(int fd,int vStart)
 {
 	int ret;
