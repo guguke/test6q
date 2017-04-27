@@ -119,8 +119,15 @@ static void transfer(int fd,int vStart)
 		for(ret=4; ret<zz; ret++){
 			sum0+=rx[ret];
 		}
-		//if(sum0==sum123) n_7a1++;
-		if(sum0==0) n_0++;
+		if(sum0==sum123 && pi[0]==1){
+			printf("\n ================   gi:%d    sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
+			n_7a1=1;
+			n_0=0;
+			sum=sum0;
+			frame0=pi[0];
+		}
+		else{
+		if(sum0==0 || sum0==0x5258 || sum0==0x0f708) n_0++;//       0x55 * (252-4)
 		else{
 		if(sum!=sum0){
 			sum=sum0;
@@ -145,6 +152,7 @@ static void transfer(int fd,int vStart)
 			else n_7a1++;
 		}
 		frame0=pi[0];
+		}
 		}
 	}
 }

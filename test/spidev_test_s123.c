@@ -262,6 +262,7 @@ int main(int argc, char *argv[])
 		printf("\r loop(1..... : %d",i+1);
 	}
 	printf("\n");
+	transfer(fd,0);
 
 	close(fd);
 
