@@ -1029,7 +1029,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 				return IRQ_HANDLED;
 			}
 			// fifo.blank , buf.blank , blank.overflow
-			if(spi_imx->txBlank>10){
+			if(spi_imx->txBlank>100000){
 				spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
 				printk(KERN_DEBUG"%s   txrcv==0 numSent:%d    last.buf2fifo:%d  txbuf.len:%d  nRDY:%d\n",__FUNCTION__,gnSent,nByte,c,gnRDYint);
 				spi_imx->pkgSent=-2;
