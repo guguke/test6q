@@ -21,7 +21,7 @@ int main(void)
 	printf("Cannot open %s: %s.\n", dev, strerror(errno));
 	return EXIT_FAILURE;
     }
-    for (i = 0; i < 8; i++) {	//while (1) {
+    for (i = 0; i < 20; i++) {	//while (1) {
 	n = read(fd, &ev, sizeof ev);
 
 #if 0
