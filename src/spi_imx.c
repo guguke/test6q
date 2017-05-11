@@ -936,8 +936,8 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 			if(spi_imx->pkgSent==1){
 			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
 			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-			//ctrl |= 0x00020000;//low level
-			ctrl |= 0x00010000;// falling edge
+			ctrl |= 0x00020000;//low level   rdy
+			//ctrl |= 0x00010000;// falling edge
 			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 			}
 			spi_imx->devtype_data.trigger(spi_imx);
