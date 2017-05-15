@@ -178,7 +178,16 @@ struct spi_imx_data {
 	if(reg){								\
 		writel(reg,spi_imx->base + SPI_IMX2_3_STAT);			\
 	}									\
-	
+////////////////// 	
+		if(c<(RX_1000-800)){						\
+		else{							\
+			spi_imx->disable = 1;				\
+			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
+			spi_imx->rxin = 0;							\
+			spi_imx->rxout = 0;							\
+			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
+		}							\
+
 #endif
 
 #define MXC_SPI_BUF_RX(type)						\
@@ -199,20 +208,14 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 	if(spi_imx->slave){						\
 		if(spi_imx->disable==0){				\
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			\
-		if(c<(RX_1000-800)){						\
+		if(c>(RX_1000-800)){						\
+			spi_imx->rxin = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->len_now );				\
+		}								\
 			p = (void*)spi_imx->rxbuf;					\
 			p += spi_imx->rxin;					\
 			*(type*)p = val;					\
 			spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  sizeof(type));				\
-		}							\
-		else{							\
-			spi_imx->disable = 1;				\
-			spi_imx->devtype_data.intctrl(spi_imx, 0);	\
-			spi_imx->rxin = 0;							\
-			spi_imx->rxout = 0;							\
-			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
-		}							\
-		}							\
+		}								\
 	}								\
 	else{								\
 	if (spi_imx->rx_buf) {						\
