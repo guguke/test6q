@@ -894,6 +894,7 @@ static int txReadFifo(struct spi_imx_data *spi_imx)
 			spi_imx->txrcv = 0;
 			spi_imx->pkgSent++;
 			gnSent++;
+			complete(&spi_imx->xfer_done);								\
 		}
 	}
 	return 0;
@@ -919,6 +920,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		spi_imx->pkgSent=0;
 		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		ctrl &= ~0x00030000;
+		ctrl |= 0x00020000;//low level   rdy
 		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 		spi_imx->devtype_data.trigger(spi_imx);
 		return IRQ_HANDLED;
@@ -939,6 +941,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 			if(spi_imx->pkgSent==1){
 			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
 			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+			ctrl &= ~0x00030000;
 			ctrl |= 0x00020000;//low level   rdy
 			//ctrl |= 0x00010000;// falling edge
 			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
@@ -1163,18 +1166,25 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 	// retcfg.ok
 	if(spi_imx->pkgSent==-2){
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
-		if(c > (transfer->len<<1) ) {
+		//if(c > (transfer->len<<1) ) {
 			spi_imx->pkgSent=-1;
 			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			return transfer->len;
-		}
-		else return transfer->len;
+		//}
+		//else return transfer->len;
 	}
 	else{// sending 
 		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		return transfer->len;
+		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
+		if(c < (transfer->len<<3) ) return transfer->len;
+		else{
+			init_completion(&spi_imx->xfer_done);
+			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+			return transfer->len;
+		}
 	}
 
 	return transfer->len;
