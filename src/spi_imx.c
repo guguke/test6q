@@ -402,7 +402,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
 	/* set clock speed */
-	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz);
+	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2);
 
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
