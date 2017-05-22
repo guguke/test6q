@@ -79,6 +79,9 @@
 #define SPI_IMX2_3_STAT_TC		(1 <<  7)
 #define SPI_IMX2_3_DMAREG		0x14
 #define SPI_IMX2_3_TESTREG		0x20
+
+struct spi_imx_config gsConfig;// slave config.new
+
 struct spi_imx_config {
 	unsigned int speed_hz;
 	unsigned int bpw;
@@ -399,7 +402,9 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
         //printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
-	if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
+
+	//if(spi_imx->slave==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
+	ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
 	/* set clock speed */
 	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2);
@@ -435,8 +440,8 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	writel(cfg, spi_imx->base + SPI_IMX2_3_CONFIG);
 	writel(0x00100030, spi_imx->base + SPI_IMX2_3_DMAREG);
 
-	if(spi_imx->slave == 1 )
-		spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
+	//if(spi_imx->slave == 1 )
+		//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 	//else 
 		//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 	return 0;
@@ -795,14 +800,6 @@ static void spi_imx_mypush(struct spi_imx_data *spi_imx)
 		spi_imx->txfifo++;
 	}
 }
-static int blank2rx(struct spi_imx_data *spi_imx)
-{
-	int reg;
-	if(spi_imx->rxin!=spi_imx->rxout) return 0;
-	reg=8 & readl(spi_imx->base + SPI_IMX2_3_STAT);
-	if(reg) return 0;
-	return 1;// blank 
-}
 static int blank2tx(struct spi_imx_data *spi_imx)
 {
 	int reg;
@@ -1085,21 +1082,26 @@ static int spi_imx_setupxfer_slave(struct spi_device *spi, struct spi_transfer *
 
 	switch(spi_imx->retcfg){
 	case 2:
+		gsConfig.bpw = config.bpw;
+		gsConfig.speed_hz = config.speed_hz;
+		gsConfig.mode = cnofig.mode;
+		gsConfig.cs = config.cs;
+		gsConfig.len = config.len;
+		spi_imx->retcfg=2;// cfg.error
+		break;
 	case 1:///  config.ok
 		if(sameCFG(&config,spi_imx)){
 			spi_imx->retcfg=1;
 			break;
 		}
-		else{
-			if(blank2rx){// not same,blank
-				spi_imx->retcfg=1;// cfg.ok
-				do_config(spi_imx,&config);
-				break;
-			}
-			else{// not same, not blank
-				spi_imx->retcfg=2;// cfg.error
-				break;
-			}
+		else{  // not same
+			gsConfig.bpw = config.bpw;
+			gsConfig.speed_hz = config.speed_hz;
+			gsConfig.mode = cnofig.mode;
+			gsConfig.cs = config.cs;
+			gsConfig.len = config.len;
+			spi_imx->retcfg=2;// cfg.delay
+			break;
 		}
 		break;
 	default: // config.notcfg
@@ -1203,60 +1205,34 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 	spi_imx->count = transfer->len;
 	spi_imx->txfifo = 0;
 
-	if(spi_imx->retcfg==2) return 0;// config.error
-	//init_completion(&spi_imx->xfer_done);
-
 	spi_imx->disable = 0;
-	if(spi_imx->slave){
-		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
-		//printk("   wait 1- c: %d \n",c);
-		if(c>=transfer->len){			
+	c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
+	//printk("   wait 1- c: %d \n",c);
+	if(c>=transfer->len){			
 #if 1
-			p = (void*)spi_imx->rxbuf;					
-			p += spi_imx->rxout;
-			c1 = spi_imx->rxout + transfer->len;
-			pi = (int*)spi_imx->rxbuf;					
-			pi += spi_imx->rxout>>2;
-			//printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<RX_1000){
-			memcpy(spi_imx->rx_buf,p,transfer->len);					
-			}
-			else{
-			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
-			}
+		p = (void*)spi_imx->rxbuf;					
+		p += spi_imx->rxout;
+		memcpy(spi_imx->rx_buf,p,transfer->len);					
 #endif
-			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
-			return transfer->len;
-		}
+		spi_imx->rxout = RX_FFF & (spi_imx->rxout + 256);				
+		return transfer->len;
 	}
+	else if(c==0)spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 	for(;;){
-	init_completion(&spi_imx->xfer_done);
-	//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
-	wait_for_completion_interruptible(&spi_imx->xfer_done);
-	//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
-	if(spi_imx->slave){
+		init_completion(&spi_imx->xfer_done);
+		//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
+		wait_for_completion_interruptible(&spi_imx->xfer_done);
+		//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 		//printk("   wait  c: %d \n",c);
-		if(c<transfer->len)continue;			
+		if(c==0) break;			
 #if 1
 			p = (void*)spi_imx->rxbuf;					
 			p += spi_imx->rxout;
-			c1 = spi_imx->rxout + transfer->len;
-			pi = (int*)spi_imx->rxbuf;					
-			pi += spi_imx->rxout>>2;
-			//printk("   wait rxout: %d ,0x%08x\n",spi_imx->rxout,*pi);
-			if(c1<RX_1000){
 			memcpy(spi_imx->rx_buf,p,transfer->len);					
-			}
-			else{
-			memcpy(spi_imx->rx_buf,p,RX_1000 - spi_imx->rxout);					
-			memcpy(spi_imx->rx_buf+RX_1000-spi_imx->rxout,spi_imx->rxbuf,transfer->len - RX_1000 + spi_imx->rxout);					
-			}
 #endif
-			spi_imx->rxout = RX_FFF & (spi_imx->rxout + transfer->len);				
+			spi_imx->rxout = RX_FFF & (spi_imx->rxout + 256);				
 			break;
-	}
 	}
 
 	return transfer->len;
