@@ -55,6 +55,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_EIM_OE__ECSPI2_MISO,
 	//MX6Q_PAD_EIM_LBA__GPIO_2_27,
 	MX6Q_PAD_EIM_LBA__ECSPI2_SS1,
+	MX6Q_PAD_EIM_A25__ECSPI2_RDY,  /* FLT_1_B */
 
 	/* ENET */
 	MX6Q_PAD_ENET_MDIO__ENET_MDIO,
@@ -258,7 +259,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 
 	/* Charge */
-	MX6Q_PAD_EIM_A25__GPIO_5_2,  /* FLT_1_B */
+	//MX6Q_PAD_EIM_A25__GPIO_5_2,  /* FLT_1_B */
 //	MX6Q_PAD_EIM_D23__GPIO_3_23, /* CHG_1_B */
 	MX6Q_PAD_EIM_DA13__GPIO_3_13, /* CHG_2_B  */
 	MX6Q_PAD_EIM_DA14__GPIO_3_14, /* FLT_2_B */
