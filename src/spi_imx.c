@@ -109,6 +109,7 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
+static int gntmp=0;
 static int gnSent=0;
 #define RX_1000 0x100000
 #define RX_FFF (RX_1000-1)
@@ -399,7 +400,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	//return 0;
 	//if(config->cs==0) spi_imx->slave=0;
 	//else spi_imx->slave = 1;
-        printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
+        trace_printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
@@ -804,8 +805,8 @@ static int blank2fifo(struct spi_imx_data *spi_imx)
 {
 	int i,n63;
 	n63 = ( spi_imx->len_now + 3 ) >> 2;
-	for(i=0x00ffff00;i<n63;i++){
-		writel(0, spi_imx->base + MXC_CSPITXDATA);
+	for(i=0;i<n63;i++){
+		writel(0x00ffff00, spi_imx->base + MXC_CSPITXDATA);
 	}
 	return n63;
 }
@@ -887,14 +888,14 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		blank2fifo(spi_imx);
 		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		ctrl &= ~0x00030000;
-		//ctrl |= 0x00020000;//low level   rdy
+		ctrl |= 0x00020000;//low level   rdy
 		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 		spi_imx->devtype_data.trigger(spi_imx);
 		return IRQ_HANDLED;
 	case 1:// blank2fifo ,
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( 0==s ) return IRQ_HANDLED;// error , no int 
-	printk(KERN_DEBUG"slave.case.1 %s  slave:         sp_imx_data->slave : %d ********************** \n",__FUNCTION__,spi_imx->slave);
+	//printk(KERN_DEBUG"  gntmp:%d  , slave.case.1 %s  slave:         sp_imx_data->slave : %d ********************** \n",gntmp,__FUNCTION__,spi_imx->slave);
 		rxReadFifo(spi_imx);
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			
 		if(c>5000) spi_imx->rxin = spi_imx->rxin & (~0x0ff);	
@@ -903,11 +904,19 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		complete(&spi_imx->xfer_done);
 
 		blank2fifo(spi_imx);
+		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
+		if( 1==s ){
+			//printk(KERN_DEBUG"  gntmp:%d  , write2fifo %s  slave:         sp_imx_data->slave : %d ********************** \n",gntmp,__FUNCTION__,spi_imx->slave);
+			return IRQ_HANDLED;// error , no int
+		} 
 		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		ctrl &= ~0x00030000;
-		//ctrl |= 0x00020000;//low level   rdy
+		ctrl |= 0x00020000;//low level   rdy
 		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 		spi_imx->devtype_data.trigger(spi_imx);
+		gntmp++;
+		//if(gntmp>10)
+			//spi_imx->devtype_data.intctrl( spi_imx, 0);
 		return IRQ_HANDLED;
 	default:
 		break;
