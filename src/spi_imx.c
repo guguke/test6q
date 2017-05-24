@@ -916,7 +916,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		buf2fifo(spi_imx);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if( s ) return IRQ_HANDLED;
-		printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
+		trace_printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
 		spi_imx->pkgSent=0;
 		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 		ctrl &= ~0x00030000;
@@ -935,7 +935,7 @@ static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 		if(s){
 			spi_imx->pkgSent=-2;
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
-			printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
+			trace_printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
 		}
 		else{
 			if(spi_imx->pkgSent==1){
@@ -1128,7 +1128,7 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 	if(c>RX_1000-800){
-		printk(KERN_DEBUG"%s     txbuf overflow\n",__FUNCTION__);
+		trace_printk(KERN_DEBUG"%s     txbuf overflow\n",__FUNCTION__);
 		return 0;// error overflow
 	}
 	c1 = spi_imx->txin + len;
@@ -1352,7 +1352,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, master);
 
 	master->bus_num = pdev->id;
-	printk(KERN_DEBUG"%s   spi bus num:%d ===============\n",__FUNCTION__,master->bus_num);
+	trace_printk(KERN_DEBUG"%s   spi bus num:%d ===============\n",__FUNCTION__,master->bus_num);
 	master->num_chipselect = mxc_platform_info->num_chipselect;
 
 	spi_imx = spi_master_get_devdata(master);
