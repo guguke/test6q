@@ -108,51 +108,51 @@ static void transfer(int fd,int vStart)
 	puts("");
 	}
 	else{/////// print
-			if(pi[0]==1){
+		if(pi[0]==1){
 			printf("\n   head ============");
 			for(ret=0;ret<zz;ret++){
 				printf(" %02x",rx[ret] & 0x0ff);
 			}
 			printf("\n");
-			}
+		}
 		sum0=0;
 		for(ret=4; ret<zz; ret++){
 			sum0+=rx[ret];
 		}
-		if(sum0==sum123 && pi[0]==1){
+		if(sum0==sum123 && pi[0]==1){// head
 			printf("\n ================   gi:%d    sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
 			n_7a1=1;
 			n_0=0;
 			sum=sum0;
 			frame0=pi[0];
 		}
-		else{
-		if(sum0==0 || sum0==0x5258 || sum0==0x0f708) n_0++;//       0x55 * (252-4)
-		else{
-		if(sum!=sum0){
-			sum=sum0;
-			printf("\n     gi:%d  sum 0x%x   num.correct:%d  num.zero:%d\n",gi,sum0,n_7a1,n_0);
-			if(sum0!=0 && sum0!=sum123){
-			for(ret=0;ret<zz;ret++){
-				printf(" %02x",rx[ret] & 0x0ff);
-			}
-			printf("\n");
-			}
-		}
-		else{
-			if((pi[0] & 0xffff0000) != (0xffff0000 & (frame0+0x10000))){
-				printf("\n   gi:%d    serial.number error, sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
-				if(sum0!=0 && sum0!=sum123){
-					for(ret=0;ret<zz;ret++){
-						printf(" %02x",rx[ret] & 0x0ff);
+		else{ // not head
+			if(sum0==0 || sum0==0x5258 || sum0==0x0f708) n_0++;//       0x55 * (252-4)
+			else{/// not zero pkt
+				if(sum!=sum0){
+					sum=sum0;
+					printf("\n     gi:%d  sum 0x%x   num.correct:%d  num.zero:%d\n",gi,sum0,n_7a1,n_0);
+					if(sum0!=0 && sum0!=sum123){
+						for(ret=0;ret<zz;ret++){
+							printf(" %02x",rx[ret] & 0x0ff);
+						}
+						printf("\n");
 					}
-					printf("\n");
 				}
+				else{
+					if((pi[0] & 0xffff0000) != (0xffff0000 & (frame0+0x10000))){
+						printf("\n   gi:%d    serial.number error, sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
+						if(sum0!=0 && sum0!=sum123){
+							for(ret=0;ret<zz;ret++){
+								printf(" %02x",rx[ret] & 0x0ff);
+							}
+							printf("\n");
+						}
+					}
+					else n_7a1++;
+				}
+				frame0=pi[0];
 			}
-			else n_7a1++;
-		}
-		frame0=pi[0];
-		}
 		}
 	}
 }
