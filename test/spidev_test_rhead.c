@@ -29,6 +29,15 @@ static void pabort(const char *s)
 	abort();
 }
 
+#define PKT_HEAD 0x0fffff0f
+#define SUM0F252 0x0f30c
+static int gerr252[300];
+static int gnbuf63[200];
+static int gnLen63=0;
+static int gnzLen=0;// num char , 
+static int gsumZero=0;  // sum char 
+static int gnHead=-1;
+
 static const char *device = "/dev/spidev1.1";
 static uint8_t mode;
 static uint8_t bits = 32;
@@ -41,33 +50,125 @@ static int noprint=1;
 static int sum=-1;
 static int n_7a1=0; // sum 0,1,2,... 3e
 static int n_0=0; // sum 0,1,2,... 3e
-//static int sum123=0x7a1;///   00.01.02   sum0-251
-static int sum123=0x7994;///   02.03.04.05   sum4-251
+static int n_err=0;
 
-static int sum55=0x7a2;
-static int frame0=-1;
-static int gi=0;
-
-#define FIFO_INT_SIZE 0x400
-static int idxW=0;
-static int idxR=0;
-static int gfifo[FIFO_INT_SIZE];
-static int gfifo252[252];
-
-static void check252()
+static void pCount(int n)
 {
-
+	if(n>0)
+	printf("\rcorrect:%d zero:%d err:%d\n",n_ok,n_0,n_err);
+	else
+	printf("\rcorrect:%d zero:%d err:%d",n_ok,n_0,n_err);
 }
-static void wfifo(int *pi)
+static void searchHead()
+{
+	gnHead=-1;
+	int i;
+	for(i=0;i<gnLen63;i++){
+		if(PKT_HEAD != gnbuf63[i] ) continue;
+		gnHead = i;
+		break;
+	}
+}
+static void move2buf63(int *pi)
 {
 	int i;
-	int len;
-	for(i=0;i<252;i++){
-		gfifo[idxW]=pi[i];
-		idxW=(FIFO_INT_SIZE-1) & (idxW+1);
+	for(i=0;i<63;i++)gnbuf63[gnLen63++]=pi[i];
+}
+static void pErr252()
+{
+	int i;
+	printf("\n  error packet ( sum: 0x%x len:%d ) ::: ",gsumZero,gnzLen);
+	for(i=0;i<252;i++) printf("%02x ",0x0ff & gerr252[i]);
+	printf("\n");
+}
+static void printZ()
+{
+	if(gnzLen<=0) return;
+	if(gnzLen!=252){
+		n_err++;
+		pErr252();
+		pCount(1);
 	}
-	len=(FIFO_INT_SIZE-1) & (FIFO_INT_SIZE+idxW-idxR);
-	if(len>=252)check252();
+	else{
+	if(gsumZero==0){
+		n_0++;
+		pCount(0);
+	}
+	else{
+		n_err++;
+		pErr252();
+		pCount(1);
+	}
+	}
+	gsumZero = 0;
+	gnzLen = 0;
+	
+}
+// 
+static void countZ()
+{
+	char *p=(char*)gnbuf63;
+	int i,j,k;
+
+	for(i=0;i<gnLen63;i++){
+		if(gnbuf63[i]==PKT_HEAD){
+			printZ();
+			if(i!=0){
+				for(k=0,j=i;j<gnLen63;j++,k++) gnbuf63[k]=gnbuf63[j];
+				gnLen63 -= i;
+			}
+			break;
+		}
+		else{
+			gsumZero += 0x0ff & p[(i<<2)];
+			gsumZero += 0x0ff & p[(i<<2)+1];
+			gsumZero += 0x0ff & p[(i<<2)+2];
+			gsumZero += 0x0ff & p[(i<<2)+3];
+			gerr252[gnzLen++] = p[(i<<2)];
+			gerr252[gnzLen++] = p[(i<<2)+1];
+			gerr252[gnzLen++] = p[(i<<2)+2];
+			gerr252[gnzLen++] = p[(i<<2)+3];
+			if(gnzLen>=252) printZ();
+		}
+	}
+	if(gnLen63>0 && gnbuf63[0]!=PKT_HEAD){
+		gnLen63 = 0;
+	}
+}
+static void count1()
+{
+	char *p=(char*)gnbuf63;
+	int i,j,k;
+	int sum=0;
+	
+	if(gnLen63<63) return;
+	if(gnbuf63[0]!=PKT_HEAD) return;
+
+	for(i=8;i<252;i++)sum+= 0x0ff & p[i];
+	if(sum!=SUM0F252){
+		perr1();
+		n_err++;
+		pCount(1);
+	}
+	else{
+		if(gnbuf63[1]==0){
+			pCount(1);
+			n_ok=1;
+			pCount(0);
+		}
+		else{
+			n_ok++;
+			pCount(0);
+		}
+	}
+	for(k=0,j=63;j<gnLen63;j++,k++) gnbuf63[k]=gnbuf63[j];
+	gnLen63 -= 63;
+}
+static void count(int *pi)
+{
+	move2buf63(pi);
+	countZ();
+	if(gnLen63>=63 && gnbuf63[0]==0x0fffff0f) count1();
 }
 
 static void transfer(int fd,int vStart)
@@ -130,43 +231,21 @@ static void transfer(int fd,int vStart)
 	puts("");
 	}
 	else{/////// print
-			if(pi[0]==1){
-			printf("\n   head ============");
-			for(ret=0;ret<zz;ret++){
-				printf(" %02x",rx[ret] & 0x0ff);
-			}
-			printf("\n");
-			}
 		sum0=0;
-		for(ret=4; ret<zz; ret++){
+		for(ret=0; ret<zz; ret++){
 			sum0+=rx[ret];
 		}
-		//if(sum0==sum123) n_7a1++;
+		if(sum0==0x7a1) n_7a1++;
 		if(sum0==0) n_0++;
-		else{
 		if(sum!=sum0){
 			sum=sum0;
-			printf("\n     gi:%d  sum 0x%x   num.correct:%d  num.zero:%d\n",gi,sum0,n_7a1,n_0);
-			if(sum0!=0 && sum0!=sum123){
+			printf("\n sum 0x%x   num.correct:%d  num.zero:%d\n",sum0,n_7a1,n_0);
+			if(sum0!=0 && sum0!=0x7a1){
 			for(ret=0;ret<zz;ret++){
 				printf(" %02x",rx[ret] & 0x0ff);
 			}
 			printf("\n");
 			}
-		}
-		else{
-			if((pi[0] & 0xffff0000) != (0xffff0000 & (frame0+0x10000))){
-				printf("\n   gi:%d    serial.number error, sn:%08x sn[1]:%08x    sum 0x%x   num.correct:%d  num.zero:%d\n",gi,pi[0],frame0,sum0,n_7a1,n_0);
-				if(sum0!=0 && sum0!=sum123){
-					for(ret=0;ret<zz;ret++){
-						printf(" %02x",rx[ret] & 0x0ff);
-					}
-					printf("\n");
-				}
-			}
-			else n_7a1++;
-		}
-		frame0=pi[0];
 		}
 	}
 }
@@ -324,10 +403,10 @@ int main(int argc, char *argv[])
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
 	printf("\n");
-	for(i=0;i<ll;i++,gi++){
+	for(i=0;i<ll;i++){
 		if(delayus!=0) usleep(delayus);
+		printf("\r wait  loop(1..... : %d   num.correct:%d  num.zero:%d",i+1,n_7a1,n_0);
 	transfer(fd,i);
-		printf("\r rceived %d   num.correct:%d  num.zero:%d",gi+1,n_7a1,n_0);
 	}
 	printf("\n");
 
