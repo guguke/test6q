@@ -78,11 +78,12 @@ static void transfer(int fd,int vStart)
 		.bits_per_word = bits,
 	};
 	pi = (int*)rx;
-	ntx[0]=0xffffffff;
-	for(i=1;i<256;i++){
-		ntx[i]=vStart;
+	for(i=0;i<256;i++){
+		ntx[i]=0x0f0f0f0f;
 		rx[i]=0x0f;
 	}
+	ntx[0]=0x0fffff0f;
+	ntx[1]=vStart;
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1)

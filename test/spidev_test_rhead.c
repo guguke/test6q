@@ -30,13 +30,16 @@ static void pabort(const char *s)
 }
 
 #define PKT_HEAD 0x0fffff0f
-#define SUM0F252 0x0f30c
+//// (252-8)* 0x0f
+#define SUM0F252 0x0e4c
 static int gerr252[300];
 static int gnbuf63[200];
 static int gnLen63=0;
 static int gnzLen=0;// num char , 
 static int gsumZero=0;  // sum char 
 static int gnHead=-1;
+static int gsn1=0;
+static int gsn0=0;
 
 static const char *device = "/dev/spidev1.1";
 static uint8_t mode;
@@ -51,13 +54,13 @@ static int sum=-1;
 static int n_7a1=0; // sum 0,1,2,... 3e
 static int n_0=0; // sum 0,1,2,... 3e
 static int n_err=0;
+static int n_e1=0;
+static int n_ok=0;
 
 static void pCount(int n)
 {
-	if(n>0)
-	printf("\rcorrect:%d zero:%d err:%d\n",n_ok,n_0,n_err);
-	else
-	printf("\rcorrect:%d zero:%d err:%d",n_ok,n_0,n_err);
+	printf("\r  sn: 0x%x -- 0x%x(%d)(%d)   correct:%d zero:%d err:%d e1:%d",gsn1,gsn0,gsn0,gsn0-gsn1,n_ok,n_0,n_err,n_e1);
+	if(n>0) printf("\n");
 }
 static void searchHead()
 {
@@ -135,6 +138,15 @@ static void countZ()
 		gnLen63 = 0;
 	}
 }
+static void ppkt()
+{
+	char *p=(char*)gnbuf63;
+	int i;
+	printf("\n");
+	for(i=0;i<252;i++)printf("%02x ",*p++);
+	printf("\n");
+
+}
 static void count1()
 {
 	char *p=(char*)gnbuf63;
@@ -144,17 +156,29 @@ static void count1()
 	if(gnLen63<63) return;
 	if(gnbuf63[0]!=PKT_HEAD) return;
 
+	gsn1 = gsn0;
+	gsn0 = gnbuf63[1];
 	for(i=8;i<252;i++)sum+= 0x0ff & p[i];
 	if(sum!=SUM0F252){
-		perr1();
+		ppkt();
+		printf("\n sum.err: 0x%x\n",sum);
 		n_err++;
 		pCount(1);
 	}
-	else{
+	else{  // checksum ok
 		if(gnbuf63[1]==0){
 			pCount(1);
 			n_ok=1;
+			n_err=0;
+			n_0 = 0;
+			n_e1 = 0;
+			printf("============================================================\n");
 			pCount(0);
+		}
+		else if(gsn0!=gsn1+1){
+			n_e1++;//err++;
+			printf("\nsn+1.err:\n");
+			pCount(1);
 		}
 		else{
 			n_ok++;
@@ -168,7 +192,7 @@ static void count(int *pi)
 {
 	move2buf63(pi);
 	countZ();
-	if(gnLen63>=63 && gnbuf63[0]==0x0fffff0f) count1();
+	if(gnLen63>=63 && gnbuf63[0]==PKT_HEAD) count1();
 }
 
 static void transfer(int fd,int vStart)
@@ -222,6 +246,8 @@ static void transfer(int fd,int vStart)
 	if (ret < 1)
 		pabort("can't send spi message");
 
+	count(pi);
+#if 0
 	if(noprint==0){
 	//for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
 	for (ret = 0; ret < zz; ret++) {
@@ -248,6 +274,7 @@ static void transfer(int fd,int vStart)
 			}
 		}
 	}
+#endif
 }
 
 static void print_usage(const char *prog)
@@ -405,7 +432,7 @@ int main(int argc, char *argv[])
 	printf("\n");
 	for(i=0;i<ll;i++){
 		if(delayus!=0) usleep(delayus);
-		printf("\r wait  loop(1..... : %d   num.correct:%d  num.zero:%d",i+1,n_7a1,n_0);
+		//printf("\r wait  loop(1..... : %d   num.correct:%d  num.zero:%d",i+1,n_7a1,n_0);
 	transfer(fd,i);
 	}
 	printf("\n");
