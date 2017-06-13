@@ -1096,7 +1096,7 @@ static irqreturn_t master_rdy_isr(int irq, void *dev_id)
 	}
 	else{  // txfifo blank
 		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-		printk(KERN_DEBUG"%s  txfifo.blank, txbuf.len:%d  num.rdy.interrupt:%d \n",__FUNCTION__,c,gnRDYint);
+		trace_printk("%s  txfifo.blank, txbuf.len:%d  num.rdy.interrupt:%d \n",__FUNCTION__,c,gnRDYint);
 		//hrtimer_start(&timer5ms,ktime,HRTIMER_MODE_REL);
 	}
 	return IRQ_HANDLED;
