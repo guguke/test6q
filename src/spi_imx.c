@@ -1283,9 +1283,11 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 {
 	int c,c1;
 	void *p;
+	int piz[64],i;
 	int *pi;
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	//printk("    func transfer  len: %d ======================================\n",transfer->len);
+	for(i=0;i<64;i++)piz[i]=0;
 
 	spi_imx->tx_buf = transfer->tx_buf;
 	spi_imx->rx_buf = transfer->rx_buf;
@@ -1308,11 +1310,15 @@ static int spi_imx_transfer_slave(struct spi_device *spi,
 	for(;;){
 		init_completion(&spi_imx->xfer_done);
 		//printk("   transfer : %d   wait 0      done  \n",spi_imx->slave);
-		wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+		wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,2*HZ);
 		//printk("   transfer : %d   wait 1      done  \n",spi_imx->slave);
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);
 		//printk("   wait  c: %d \n",c);
-		if(c==0) break;			
+		//if(c==0) break;			
+		if(c==0){
+			memcpy(spi_imx->rx_buf,(void*)piz,transfer->len);					
+			break;//continue;			
+		}
 #if 1
 			p = (void*)spi_imx->rxbuf;					
 			p += spi_imx->rxout;
