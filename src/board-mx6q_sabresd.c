@@ -476,13 +476,13 @@ static int mxc_wm8958_init(void)
 
 	wm8958_data.sysclk = rate;
 	clk_set_rate(clko, rate);
-
+#if 0
 	/* enable wm8958 4.2v power supply */
 	gpio_request(SABRESD_CODEC_PWR_EN, "aud_4v2");
 	gpio_direction_output(SABRESD_CODEC_PWR_EN, 1);
 	msleep(1);
 	gpio_set_value(SABRESD_CODEC_PWR_EN, 1);
-
+#endif
 	return 0;
 }
 
@@ -1636,12 +1636,14 @@ static void gps_power_on(bool on)
 	gpio_set_value(SABRESD_AUX_3V15_EN, on);
 	gpio_free(SABRESD_AUX_3V15_EN);
 #endif
+#if 0
 	/*Enable/disable gps_en*/
 	gpio_request(SABRESD_GPS_EN, "gps_en");
 	gpio_direction_output(SABRESD_GPS_EN, 1);
 	//gpio_set_value(SABRESD_GPS_EN, on);
 	gpio_set_value(SABRESD_GPS_EN, 0);
 	gpio_free(SABRESD_GPS_EN);
+#endif
 
 }
 
@@ -1999,8 +2001,10 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(SABRESD_CABC_EN1, "cabc-en1");
 	gpio_direction_output(SABRESD_CABC_EN1, 0);
 #endif
+#if 0
 	gpio_request(SABRESD_WIFI_PWN, "wifi_pwn");
 	gpio_direction_output(SABRESD_WIFI_PWN, 0);
+#endif
     //gpio_request(SABRESD_DISP0_PWR_EN, "rs485_pwn");
     //gpio_direction_output(SABRESD_DISP0_PWR_EN, 0);
 	imx6q_add_mxc_pwm(0);
