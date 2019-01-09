@@ -1,4 +1,5 @@
 
+6 branch.m3 20190109 , add ecspi3 master
 5 board_.......v100.*   board ver2
 
 4. v2.1.0.1.1 , spi,master, using RDY.pin 
