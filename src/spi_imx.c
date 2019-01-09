@@ -1216,7 +1216,8 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 
 	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-	if(c>RX_1000-800){
+	if(c>300){
+	//if(c>RX_1000-800){
 		//printk(KERN_DEBUG"%s     txbuf overflow\n",__FUNCTION__);
 		return 0;// error overflow
 	}
@@ -1239,6 +1240,7 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 static int spi_imx_transfer_master(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
+	int len,i;
 	int c,c1;
 	void *p;
 	int *pi;
@@ -1265,15 +1267,24 @@ static int spi_imx_transfer_master(struct spi_device *spi,
 		//else return transfer->len;
 	}
 	else{// sending 
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		for(i=0;i<3;i++){
+		len=tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		if(len>0){
 		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
-		if(c < (transfer->len<<3) ) return transfer->len;
+		//if(c < (transfer->len<<3) ) return transfer->len;
+		if(c < 300 ) return transfer->len;
 		else{
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 			return transfer->len;
 		}
+		}
+		else{// len==0
+			init_completion(&spi_imx->xfer_done);
+			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+		}
+		}// for i
 	}
 
 	return transfer->len;
