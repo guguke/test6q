@@ -391,7 +391,7 @@ static struct spi_board_info imx6_sabresd_spi_nor_device[] __initdata = {
 	{
 		.modalias = "spidev",
 		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
-		.bus_num = 0,    //设备挂载第几号spi总线上
+		.bus_num = 2,    //设备挂载第几号spi总线上
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
     },
