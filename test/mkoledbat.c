@@ -22,8 +22,9 @@
 
 //#define	M68				// 8-bit 68XX Parallel
 						//   BS0=1; BS1=1
-#define		I80				// 8-bit 80XX Parallel
+//#define		I80				// 8-bit 80XX Parallel
 						//   BS0=0; BS1=1
+#define IMX
 //#define	SPI				// 4-wire Serial
 						//   BS0=0; BS1=0
 						//   The unused pins should be connected with VSS mostly or floating (D2).
@@ -133,6 +134,18 @@ void Write_Data(unsigned char Data)
 }
 #endif
 
+#ifdef IMX					// imx6q
+void Write_Command(unsigned char Data)
+{
+    printf(" wc %02x\n",Data);
+}
+
+
+void Write_Data(unsigned char Data)
+{
+    printf(" wd %02x\n",Data);
+}
+#endif
 
 #ifdef SPI					// 4-wire Serial
 void Write_Command(unsigned char Data)
