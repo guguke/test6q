@@ -1,3 +1,5 @@
+4 190115 branch.m3/test/oleddemo.c spidev_test_oleddemo.c
+       arm-linux-gcc oleddemo.c spidev_test_oleddemo.c -o oleddemo
 3 190115 branch.m3/test/oledbyte.c  <== spidev_test.c
     cmd line , send 2byte to oled, (-0 data8 -1 D/C#) , default -b 9  (9bits)
 2. tag v1.0
