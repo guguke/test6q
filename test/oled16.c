@@ -1006,6 +1006,23 @@ unsigned char i,j;
 		}
 	}
 }
+void Fill_BlockP(unsigned char *p, unsigned char a, unsigned char b, unsigned char c, unsigned char d)
+{
+unsigned char i,j;
+	
+	Set_Column_Address(Shift+a,Shift+b);
+	Set_Row_Address(c,d);
+	Set_Write_RAM();
+
+	for(i=0;i<(d-c+1);i++)
+	{
+		for(j=0;j<(b-a+1);j++)
+		{
+			Write_Data(*p++);
+			Write_Data(*p++);
+		}
+	}
+}
 
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
