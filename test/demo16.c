@@ -17,13 +17,13 @@
 static char *gp12,*gp16,*gp24;
 static char *gfb;// 256x64   
 
-void zeroFB()
+void zeroFB(char f)
 {
     int i;
     char *p;
     p=gfb;
     for(i=0;i<(256*64/2);i++){
-        *p++=0;
+        *p++=f;
     }
 }
 void draw1(int x,int y,int c)
@@ -135,6 +135,8 @@ int demo16() {
     gfb=malloc(40000);
 
     OLED_Init();
+    zeroFB(0x0ff);
+    //Fill_BlockP(gfb,0,64-1,0,63);
     showHZdemo();
 
     free(gp12);
