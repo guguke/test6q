@@ -36,6 +36,7 @@ void draw1(int x,int y,int c)
     offset=(y-1)*128;
     offset+=(x/4)*2;
     switch(x%4){
+#if 0
         case 0:
           offset+=1;
           s=0;
@@ -49,6 +50,21 @@ void draw1(int x,int y,int c)
           break;
         default:
           s=4;
+          break;
+#endif
+        case 0:
+          s=4;
+          break;
+        case 1:
+          s=0;
+          break;
+        case 2:
+          offset+=1;
+          s=4;
+          break;
+        default:
+          offset+=1;
+          s=0;
           break;
     }
     p=gfb + offset;
@@ -83,7 +99,7 @@ void showHZ16(char *p,int x,int y)
                 if(c1)
                    draw1(x+((j-1)<<3)+k,y+i,0x0f);
                 else 
-                   draw1(x+((j-1)<<3)+k,y+i,0x00);
+                   draw1(x+((j-1)<<3)+k,y+i,0x0);
             }
         }
     }
@@ -100,7 +116,12 @@ void showHZdemo()
             pdot+=32;
         }
     }
-    Fill_BlockP(gfb,28,28+64-1,0,63);
+    Fill_BlockP(gfb,0,63,0,63);
+}
+void lineXY()
+{
+    int i;
+    for(i=0;i<64;i++)draw1(i,i,0x0f);
 }
 
 void loaddot()
@@ -135,7 +156,8 @@ int demo16() {
     gfb=malloc(40000);
 
     OLED_Init();
-    zeroFB(0x0ff);
+    zeroFB(0x0);
+    //lineXY();
     //Fill_BlockP(gfb,0,64-1,0,63);
     showHZdemo();
 
