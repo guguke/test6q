@@ -134,6 +134,7 @@ int demo16() {
     loaddot();
     gfb=malloc(40000);
 
+    OLED_Init();
     showHZdemo();
 
     free(gp12);
