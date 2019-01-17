@@ -22,7 +22,7 @@ void zeroFB()
     int i;
     char *p;
     p=gfb;
-    for(i=0;i<(256x64/2);i++){
+    for(i=0;i<(256*64/2);i++){
         *p++=0;
     }
 }
@@ -96,7 +96,7 @@ void showHZdemo()
     pdot = gp16+(15*94*32);
     for(i=0;i<16;i++){
         for(j=0;j<4;j++){
-            showHZ16(pdot,i<<4;j<<4);
+            showHZ16(pdot,i<<4,j<<4);
             pdot+=32;
         }
     }
