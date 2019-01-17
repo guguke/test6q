@@ -123,7 +123,14 @@ void lineXY()
     int i;
     for(i=0;i<64;i++)draw1(i,i,0x0f);
 }
-
+void col0()
+{
+    int i;
+    for(i=0;i<64;i++) draw1(0,i,0x0f);
+    for(i=0;i<64;i++) draw1(255,i,0x0f);
+    for(i=0;i<256;i++) draw1(i,0,0x0f);
+    for(i=0;i<256;i++) draw1(i,63,0x0f);
+}
 void loaddot()
 {
 	int fd;
@@ -158,8 +165,10 @@ int demo16() {
     OLED_Init();
     zeroFB(0x0);
     //lineXY();
-    //Fill_BlockP(gfb,0,64-1,0,63);
-    showHZdemo();
+    col0();
+    Fill_BlockP(gfb,0,64-1,0,63);
+
+    //showHZdemo();
 
     free(gp12);
     free(gp16);
