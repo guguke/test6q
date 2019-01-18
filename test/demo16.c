@@ -33,7 +33,7 @@ void draw1(int x,int y,int c)
     char *p;
     char ch;
 
-    offset=(y-1)*128;
+    offset=y*128;
     offset+=(x/4)*2;
     switch(x%4){
 #if 0
