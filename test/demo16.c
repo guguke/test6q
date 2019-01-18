@@ -109,7 +109,8 @@ void showHZdemo()
 {
     char *pdot;
     int i,j;
-    pdot = gp16+(15*94*32);
+    //pdot = gp16+(15*94*32);
+    pdot = gp16;
     for(i=0;i<16;i++){
         for(j=0;j<4;j++){
             showHZ16(pdot,i<<4,j<<4);
@@ -123,6 +124,7 @@ void lineXY()
     int i;
     for(i=0;i<64;i++)draw1(i,i,0x0f);
 }
+// draw rectangle
 void col0()
 {
     int i;
@@ -165,10 +167,11 @@ int demo16() {
     OLED_Init();
     zeroFB(0x0);
     //lineXY();
-    col0();
-    Fill_BlockP(gfb,0,64-1,0,63);
 
-    //showHZdemo();
+    //col0();
+    //Fill_BlockP(gfb,0,64-1,0,63);
+
+    showHZdemo();
 
     free(gp12);
     free(gp16);
