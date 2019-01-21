@@ -97,9 +97,9 @@ void showHZ16(char *p,int x,int y)
                 m = 7-k;
                 c1 = (1<<m)&ch;
                 if(c1)
-                   draw1(x+((j-1)<<3)+k,y+i,0x0f);
+                   draw1(x+(j<<3)+k,y+i,0x0f);
                 else 
-                   draw1(x+((j-1)<<3)+k,y+i,0x0);
+                   draw1(x+(j<<3)+k,y+i,0x0);
             }
         }
     }
@@ -109,11 +109,11 @@ void showHZdemo()
 {
     char *pdot;
     int i,j;
-    //pdot = gp16+(15*94*32);
-    pdot = gp16;
-    for(i=0;i<16;i++){
-        for(j=0;j<4;j++){
-            showHZ16(pdot,i<<4,j<<4);
+    pdot = gp16+(15*94*32);
+    //pdot = gp16;
+    for(i=0;i<4;i++){
+        for(j=0;j<16;j++){
+            showHZ16(pdot,j<<4,i<<4);
             pdot+=32;
         }
     }
