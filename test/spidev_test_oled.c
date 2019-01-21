@@ -23,23 +23,32 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+int gfd;
+
 static void pabort(const char *s)
 {
 	perror(s);
 	abort();
 }
 
-static const char *device = "/dev/spidev0.0";
+static const char *device = "/dev/spidev2.0";
 static uint8_t mode;
-static uint8_t bits = 8;
-static uint32_t speed = 500000;
+static uint8_t bits = 9;
+static uint32_t speed = 16000000;
 static uint16_t delay;
 
-static void transfer(int fd)
+	uint8_t tx[] = { 0xff,0x00};
+static void transfer()
 {
 	int ret;
+#if 0
 	uint8_t tx[] = {
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+		 0xFF, 0x00, 0xFF, 0x00, 0xFF,
+		0x00, 0xFF, 0x00, 
+	};
+#endif
+#if 0
+
 		0x40, 0x00, 0x00, 0x00, 0x00, 0x95,
 		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -47,6 +56,7 @@ static void transfer(int fd)
 		0xDE, 0xAD, 0xBE, 0xEF, 0xBA, 0xAD,
 		0xF0, 0x0D,
 	};
+#endif
 	uint8_t rx[ARRAY_SIZE(tx)] = {0, };
 	struct spi_ioc_transfer tr = {
 		.tx_buf = (unsigned long)tx,
@@ -57,16 +67,17 @@ static void transfer(int fd)
 		.bits_per_word = bits,
 	};
 
-	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &tr);
+	ret = ioctl(gfd, SPI_IOC_MESSAGE(1), &tr);
 	if (ret < 1)
 		pabort("can't send spi message");
-
+#if 0
 	for (ret = 0; ret < ARRAY_SIZE(tx); ret++) {
 		if (!(ret % 6))
 			puts("");
 		printf("%.2X ", rx[ret]);
 	}
 	puts("");
+#endif
 }
 
 static void print_usage(const char *prog)
@@ -87,8 +98,11 @@ static void print_usage(const char *prog)
 
 static void parse_opts(int argc, char *argv[])
 {
+	int h;
 	while (1) {
 		static const struct option lopts[] = {
+			{ "byte0",  1, 0, '0' },
+			{ "byte1",  1, 0, '1' },
 			{ "device",  1, 0, 'D' },
 			{ "speed",   1, 0, 's' },
 			{ "delay",   1, 0, 'd' },
@@ -105,12 +119,20 @@ static void parse_opts(int argc, char *argv[])
 		};
 		int c;
 
-		c = getopt_long(argc, argv, "D:s:d:b:lHOLC3NR", lopts, NULL);
+		c = getopt_long(argc, argv, "0:1:D:s:d:b:lHOLC3NR", lopts, NULL);
 
 		if (c == -1)
 			break;
 
 		switch (c) {
+		case '0':
+			sscanf(optarg,"%x",&h);
+			tx[0]=h;
+			break;
+		case '1':
+			sscanf(optarg,"%x",&h);
+			tx[1]=h;
+			break;
 		case 'D':
 			device = optarg;
 			break;
@@ -154,47 +176,53 @@ static void parse_opts(int argc, char *argv[])
 	}
 }
 
+void transfer01(int b0,int b1)
+{
+	tx[0]=b0;
+	tx[1]=b1;
+	transfer();
+}
 int main(int argc, char *argv[])
 {
 	int ret = 0;
-	int fd;
+	//int fd;
 
 	parse_opts(argc, argv);
 
-	fd = open(device, O_RDWR);
-	if (fd < 0)
+	gfd = open(device, O_RDWR);
+	if (gfd < 0)
 		pabort("can't open device");
 
 	/*
 	 * spi mode
 	 */
-	ret = ioctl(fd, SPI_IOC_WR_MODE, &mode);
+	ret = ioctl(gfd, SPI_IOC_WR_MODE, &mode);
 	if (ret == -1)
 		pabort("can't set spi mode");
 
-	ret = ioctl(fd, SPI_IOC_RD_MODE, &mode);
+	ret = ioctl(gfd, SPI_IOC_RD_MODE, &mode);
 	if (ret == -1)
 		pabort("can't get spi mode");
 
 	/*
 	 * bits per word
 	 */
-	ret = ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits);
+	ret = ioctl(gfd, SPI_IOC_WR_BITS_PER_WORD, &bits);
 	if (ret == -1)
 		pabort("can't set bits per word");
 
-	ret = ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits);
+	ret = ioctl(gfd, SPI_IOC_RD_BITS_PER_WORD, &bits);
 	if (ret == -1)
 		pabort("can't get bits per word");
 
 	/*
 	 * max speed hz
 	 */
-	ret = ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+	ret = ioctl(gfd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
 	if (ret == -1)
 		pabort("can't set max speed hz");
 
-	ret = ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
+	ret = ioctl(gfd, SPI_IOC_RD_MAX_SPEED_HZ, &speed);
 	if (ret == -1)
 		pabort("can't get max speed hz");
 
@@ -202,9 +230,10 @@ int main(int argc, char *argv[])
 	printf("bits per word: %d\n", bits);
 	printf("max speed: %d Hz (%d KHz)\n", speed, speed/1000);
 
-	transfer(fd);
+	//transfer();
+	oledtest();
 
-	close(fd);
+	close(gfd);
 
 	return ret;
 }

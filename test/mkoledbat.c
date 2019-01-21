@@ -17,8 +17,9 @@
 //  Copyright (c) WiseChip Semiconductor Inc.
 //
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-#include <at89x51.h>
+#include<stdio.h>
+#include<stdlib.h>
+//#include <at89x51.h>
 
 //#define	M68				// 8-bit 68XX Parallel
 						//   BS0=1; BS1=1
@@ -48,7 +49,16 @@
 
 #define RD	P3_0				// Read Signal
 #define WR	P3_1				// Write Signal
-
+void setP1(int p1)
+{
+}
+void setP3(int p3)
+{
+}
+void setRES(int res)
+{
+	// RES=res;
+}
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 //  Delay Time
@@ -137,13 +147,15 @@ void Write_Data(unsigned char Data)
 #ifdef IMX					// imx6q
 void Write_Command(unsigned char Data)
 {
-    printf(" wc %02x\n",Data);
+    //printf("./spidev_test_oled -b 9 -0 %02x -1 0\n",Data);
+    transfer01(Data,0);
 }
 
 
 void Write_Data(unsigned char Data)
 {
-    printf(" wd %02x\n",Data);
+    //printf("./spidev_test_oled -b 9 -0 %02x -1 ff\n",Data);
+    transfer01(Data,0x0ff);
 }
 #endif
 
@@ -399,7 +411,7 @@ void Set_Command_Lock(unsigned char d)
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 //  Patterns
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-unsigned char code Logo[][96]={			// Univision Logo
+unsigned char Logo[][96]={			// Univision Logo
 	0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X12,0X22,0X22,0X21,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
 	0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X01,0X35,0X67,0X77,0X77,0X77,0X77,0X76,0X43,0X10,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
 	0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X14,0X43,0X77,0X77,0X23,0X77,0X77,0X23,0X77,0X77,0X34,0X31,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,0X00,
@@ -467,7 +479,7 @@ unsigned char code Logo[][96]={			// Univision Logo
 };
 
 
-unsigned char code Ascii_1[240][5]={		// Refer to "Times New Roman" Font Address...
+unsigned char Ascii_1[240][5]={		// Refer to "Times New Roman" Font Address...
 						//   Basic Characters
 	{0x00,0x00,0x4F,0x00,0x00},		//   (  1)  ! - 0x0021 Exclamation Mark
 	{0x00,0x07,0x00,0x07,0x00},		//   (  2)  " - 0x0022 Quotation Mark
@@ -712,7 +724,7 @@ unsigned char code Ascii_1[240][5]={		// Refer to "Times New Roman" Font Address
 };
 
 
-unsigned char code Ascii_2[107][5]={		// Refer to "Times New Roman" Font Address...
+unsigned char Ascii_2[107][5]={		// Refer to "Times New Roman" Font Address...
 						//   Greek & Japanese Letters
 	{0x7E,0x11,0x11,0x11,0x7E},		//   (  1)  A - 0x0391 Greek Capital Letter Alpha
 	{0x7F,0x49,0x49,0x49,0x36},		//   (  2)  B - 0x0392 Greek Capital Letter Beta
@@ -1420,12 +1432,13 @@ void Test()
 {
 unsigned char i;
 
-	RES=0;
+	setRES(0);//RES=0;
 	for(i=0;i<200;i++)
 	{
 		uDelay(200);
 	}
-	RES=1;
+	setRES(1);//RES=1;
+
 
 	Set_Display_Mode(0xA5);			// Entire Display On Mode (0xA4/0xA5/0xA6/0xA7)
 
@@ -1478,12 +1491,12 @@ void OLED_Init()
 {
 unsigned char i;
 
-	RES=0;
+	setRES(0);//RES=0;
 	for(i=0;i<200;i++)
 	{
 		uDelay(200);
 	}
-	RES=1;
+	setRES(1);//RES=1;
 
 	Set_Command_Lock(0x12);			// Unlock Basic Commands (0x12/0x16)
 	Set_Display_On_Off(0xAE);		// Display Off (0xAE/0xAF)
@@ -1521,20 +1534,21 @@ unsigned char i;
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 //  Main Program
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-void main()
+//void main()
+void oledtest()
 {
-unsigned char code Name[]={55,73,83,69,35,72,73,80,0};
+unsigned char Name[]={55,73,83,69,35,72,73,80,0};
 						// WiseChip
-unsigned char code Tel[]={11,24,24,22,13,19,23,13,21,24,27,17,22,24,0};
+unsigned char Tel[]={11,24,24,22,13,19,23,13,21,24,27,17,22,24,0};
 						// +886-37-587168
 unsigned char i;
 
-	P1=0xFF;
-	P3=0xFF;
+	setP1(0xff);//P1=0xFF;
+	setP3(0xff);//P3=0xFF;
 	OLED_Init();
 
-	while(1)
-	{
+	//while(1)
+	//{
 	// Show Pattern - Univision Logo
 		Show_Pattern(&Logo[0][0],0x08,0x37,0x00,Max_Row);
 		Delay(1);
@@ -1580,9 +1594,9 @@ unsigned char i;
 		Delay(1);
 
 	// Show String - WiseChip +886-37-587168
-		Show_String(1,&Name,0x18,0x14);
-		Show_String(1,&Tel,0x12,0x24);
+		Show_String(1,Name,0x18,0x14);
+		Show_String(1,Tel,0x12,0x24);
 		Delay(2);
 		Fill_RAM(0x00);			// Clear Screen
-	}
+	//}
 }
