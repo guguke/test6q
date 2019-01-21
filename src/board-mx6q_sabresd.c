@@ -415,7 +415,7 @@ static struct spi_board_info imx6_sabresd_spi_nor_device1[] __initdata = {
 	{
 		.modalias = "spidev",
 		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
-		.bus_num = 1,    //设备挂载第几号spi总线上
+		.bus_num = 2,    //设备挂载第几号spi总线上
 		.chip_select = 1,
 		.mode = SPI_MODE_0,
     },
@@ -1943,12 +1943,13 @@ static void __init mx6_sabresd_board_init(void)
 		mx6q_sabresd_init_pfuze100(SABRESD_PFUZE_INT);
 	}
 	/* SPI */
-	imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
+	imx6q_add_ecspi(2, &mx6q_sabresd_spi_data);
 	//spi_device_init();
 
 	/* SPI-2 */
 	imx6q_add_ecspi(1, &mx6q_sabresd_spi2_data);
 	spi_device_init();
+	printk(KERN_ERR"add spi***********************************************************************************************************************************************************\n");
 
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
