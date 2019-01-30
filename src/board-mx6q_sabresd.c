@@ -139,6 +139,7 @@
 #define SABRESD_CODEC_PWR_EN	IMX_GPIO_NR(4, 10)
 #define SABRESD_HDMI_CEC_IN	IMX_GPIO_NR(4, 11)
 #define SABRESD_PCIE_DIS_B	IMX_GPIO_NR(4, 14)
+#define SABRESD_MAX7359_INT        IMX_GPIO_NR(4, 28)
 
 #define SABRESD_DI0_D0_CS	IMX_GPIO_NR(5, 0)
 #define SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
@@ -889,11 +890,13 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+#if 0
 	{
 		//I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 		I2C_BOARD_INFO("ft5x0x_ts", 0x38),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT0),
 	},
+#endif
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	},
@@ -909,6 +912,12 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT0),
 	},
+#if 1
+	{
+		I2C_BOARD_INFO("max7359", 0x38),
+		.irq = gpio_to_irq(SABRESD_MAX7359_INT),
+	},
+#endif
 	{
 		I2C_BOARD_INFO("max11801", 0x48),
 		.platform_data = (void *)&max11801_mode,
@@ -1829,6 +1838,11 @@ static void __init mx6_sabresd_board_init(void)
 	int rate;
 	struct platform_device *voutdev;
 
+	printk(" board_init *********************** irq.7359 : %d  gpio2irq:%d\n",
+SABRESD_MAX7359_INT,
+gpio_to_irq(SABRESD_MAX7359_INT)
+);
+
 	if (cpu_is_mx6q()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
 			ARRAY_SIZE(mx6q_sabresd_pads));
@@ -1951,7 +1965,7 @@ static void __init mx6_sabresd_board_init(void)
 	spi_device_init();
 	printk(KERN_ERR"add spi***********************************************************************************************************************************************************\n");
 
-	imx6q_add_mxc_hdmi(&hdmi_data);
+	//imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabresd_anatop_thermal_data);
 
