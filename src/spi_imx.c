@@ -878,7 +878,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 		if( 0==s ) return IRQ_HANDLED;// error , no int 
 		rxReadFifo(spi_imx);
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			
-		if(c>5000) spi_imx->rxin = spi_imx->rxin & (~0x0ff);	
+		if(c>50000) spi_imx->rxin = spi_imx->rxin & (~0x0ff);	
 		else spi_imx->rxin = RX_FFF & ( spi_imx->rxin + 255) & (~0x0ff);				
 		complete(&spi_imx->xfer_done);
 
@@ -898,7 +898,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	//printk(KERN_DEBUG"  gntmp:%d  , slave.case.1 %s  slave:         sp_imx_data->slave : %d ********************** \n",gntmp,__FUNCTION__,spi_imx->slave);
 		rxReadFifo(spi_imx);
 		c = RX_FFF & ( RX_1000 + spi_imx->rxin - spi_imx->rxout);			
-		if(c>5000) spi_imx->rxin = spi_imx->rxin & (~0x0ff);	
+		if(c>50000) spi_imx->rxin = spi_imx->rxin & (~0x0ff);	
 		else spi_imx->rxin = RX_FFF & ( spi_imx->rxin + 255) & (~0x0ff);				
 
 		complete(&spi_imx->xfer_done);
