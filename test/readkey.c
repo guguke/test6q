@@ -49,10 +49,10 @@ char getche(void)
 int main(void) {
   char c;
   printf("(getche example) please type a letter: ");
-  c = getche();
-  printf("\nYou typed: %c\n", c);
-  printf("(getch example) please type a letter...");
+  //c = getche();
+  //printf("\nYou typed: %c\n", c);
+  //printf("(getch example) please type a letter...");
   c = getch();
-  printf("\nYou typed: %c\n", c);
+  printf("\nYou typed: %c    %02x\n", c,c);
   return 0;
 } 
