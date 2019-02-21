@@ -1020,6 +1020,20 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
 	return nByte;
 }
+static int txReadFifoOled(struct spi_imx_data *spi_imx)
+{
+	while (spi_imx->devtype_data.rx_available(spi_imx)) {
+	//if (spi_imx->devtype_data.rx_available(spi_imx)) {
+		readb(spi_imx->base + MXC_CSPIRXDATA);
+		spi_imx->txrcv++;
+		//printk(KERN_DEBUG"%s   txrcv:%d   len:%d  /4:%d\n",__FUNCTION__,spi_imx->txrcv,spi_imx->len_now,n63);
+			//printk(KERN_DEBUG"%s   txrcv:%d ====   len:%d  /4:%d\n",__FUNCTION__,spi_imx->txrcv,spi_imx->len_now,n63);
+			//complete(&spi_imx->xfer_done);								\
+		}
+	}
+//	complete(&spi_imx->xfer_done);								
+	return 0;
+}
 static int txReadFifo(struct spi_imx_data *spi_imx)
 {
 	int n63;
@@ -1049,49 +1063,27 @@ static irqreturn_t spi_imx_isr_oled(int irq, void *dev_id)
 
 	trace_printk("[%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
 
-	if(spi_imx->pkgSent==-2) return IRQ_HANDLED;
 
-	if(spi_imx->pkgSent==-1){
-		//printk(KERN_DEBUG"%s   pkgSent==-1\n",__FUNCTION__,spi_imx->slave);
-		buf2fifoOLED(spi_imx);
-		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
-		if( s ) return IRQ_HANDLED;
-		//printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
-		spi_imx->pkgSent=0;
-		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-		ctrl &= ~0x00030000;
-		//ctrl |= 0x00020000;//low level   rdy
-		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
-		spi_imx->devtype_data.trigger(spi_imx);
-		return IRQ_HANDLED;
-	}
-	txReadFifo(spi_imx);
+	txReadFifoOled(spi_imx);
 	nByte = buf2fifoOLED(spi_imx);
 
 	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
-	if(spi_imx->txrcv==0){
+	//if(spi_imx->txrcv==0){
 		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
 			spi_imx->pkgSent=-2;
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
 			//printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
+			if(spi_imx->txrcv>0) complete(&spi_imx->xfer_done);								\
 		}
 		else{
-			if(spi_imx->pkgSent==1){
-			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
-			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
-			ctrl &= ~0x00030000;
-			//ctrl |= 0x00020000;//low level   rdy
-			//ctrl |= 0x00010000;// falling edge
-			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
-			}
 			spi_imx->devtype_data.trigger(spi_imx);
 		}
 		return IRQ_HANDLED;
-	}
+	//}
 
-	return IRQ_HANDLED;
+	//return IRQ_HANDLED;
 }
 static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 {
@@ -1358,6 +1350,35 @@ static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
 
 	return 0;
 }
+static int tx2bufOLED(void *p,int len,struct spi_imx_data *spi_imx)
+{
+	int c,c1;
+	void *pdes;
+
+	trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
+	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+	if(c>0){
+	//if(c>RX_1000-800){
+		//printk(KERN_DEBUG"%s     txbuf overflow\n",__FUNCTION__);
+		return 0;// error overflow
+	}
+	spi_imx->txrcv=0;
+	c1 = spi_imx->txin + len;
+	pdes = (void*)spi_imx->txbuf;
+	//printk(KERN_DEBUG"%s   buf.len:0x%8x   xin+len:0x%8x   xin:%8x\n",__FUNCTION__,c,c1,spi_imx->txin);
+	if(c1<=RX_1000){
+		//printk(KERN_DEBUG"%s c1<=  buf.len:0x%x   xin+len:0x%x\n",__FUNCTION__,c,c1);
+		memcpy(pdes+spi_imx->txin,p,len);					
+	}
+	else{
+		//printk(KERN_DEBUG"%s else  buf.len:0x%x   xin+len:0x%x\n",__FUNCTION__,c,c1);
+		memcpy(pdes+spi_imx->txin,p,RX_1000 - spi_imx->txin);					
+		memcpy(pdes, p + RX_1000 - spi_imx->txin ,len - RX_1000 + spi_imx->txin);					
+	}
+	spi_imx->txin = RX_FFF & (spi_imx->txin + len);
+	//printk(KERN_DEBUG"%s   txin: 0x%x      txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
+	return len;
+}
 static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 {
 	int c,c1;
@@ -1403,38 +1424,27 @@ static int spi_imx_transfer_oled(struct spi_device *spi,
 	spi_imx->txfifo = 0;
 
 	if(spi_imx->retcfg==2) return 0;// config.error
-	// retcfg.ok
-	if(spi_imx->pkgSent==-2){
-		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+	//else{// sending 
+		for(i=0;i<3;i++){
+		len=tx2bufOLED(transfer->tx_buf,transfer->len,spi_imx);
+		if(len>0){
 		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
-		//if(c > (transfer->len<<1) ) {
-			spi_imx->pkgSent=-1;
-			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-			return transfer->len;
-		//}
-		//else return transfer->len;
-	}
-	else{// sending 
-		for(i=0;i<3;i++){
-		len=tx2buf(transfer->tx_buf,transfer->len,spi_imx);
-		if(len>0){
-		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
 		//if(c < (transfer->len<<3) ) return transfer->len;
-		if(c < 300 ) return transfer->len;
-		else{
+		//if(c < 300 ) return transfer->len;
+		//else{
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 			return transfer->len;
-		}
+		//}
 		}
 		else{// len==0
+			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 		}
 		}// for i
-	}
+	//}
 
 	return transfer->len;
 }
@@ -1546,7 +1556,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
-	//if(spi_imx->bus_num==2) return spi_imx_transfer_oled(spi,transfer);
+	if(spi_imx->bus_num==2) return spi_imx_transfer_oled(spi,transfer);
 	if(spi_imx->slave) return spi_imx_transfer_slave(spi,transfer);
 	else return spi_imx_transfer_master(spi,transfer);
 }
