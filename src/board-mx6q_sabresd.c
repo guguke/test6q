@@ -325,7 +325,7 @@ static struct fec_platform_data fec_data __initdata = {
 	.phy = PHY_INTERFACE_MODE_RGMII,
 	.gpio_irq = MX6_ENET_IRQ,
 };
-
+#if 0
 static int mx6q_sabresd_spi_cs[] = {
 	SABRESD_ECSPI1_CS0,
 };
@@ -333,7 +333,17 @@ static int mx6q_sabresd_spi2_cs[] = {
 	SABRESD_ECSPI1_CS3,
     SABRESD_ECSPI2_CS1,
 };
-
+#endif
+static int mx6q_sabresd_spi_cs[] = {
+	-1,
+};
+static int mx6q_sabresd_spi2_cs[] = {
+	-1,
+	-1
+};
+static int mx6q_sabresd_spi3_cs[] = {
+	-1,
+};
 static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi_cs),
@@ -343,6 +353,11 @@ static const struct spi_imx_master mx6q_sabresd_spi2_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi2_cs,
 	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi2_cs),
         .master_mode=0,
+};
+static const struct spi_imx_master mx6q_sabresd_spi3_data __initconst = {
+	.chipselect     = mx6q_sabresd_spi3_cs,
+	.num_chipselect = ARRAY_SIZE(mx6q_sabresd_spi3_cs),
+        .master_mode=1,
 };
 
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
@@ -421,6 +436,17 @@ static struct spi_board_info imx6_sabresd_spi_nor_device1[] __initdata = {
     },
 #endif
 };
+static struct spi_board_info imx6_sabresd_spi_nor_device2[] __initdata = {
+#if defined(CONFIG_SPI_SPIDEV)
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
+		.bus_num = 2,    //设备挂载第几号spi总线上
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+    },
+#endif
+};
 
 static void spi_device_init(void)
 {
@@ -428,6 +454,8 @@ static void spi_device_init(void)
 				ARRAY_SIZE(imx6_sabresd_spi_nor_device));
 	spi_register_board_info(imx6_sabresd_spi_nor_device1,
 				ARRAY_SIZE(imx6_sabresd_spi_nor_device1));
+	spi_register_board_info(imx6_sabresd_spi_nor_device2,
+				ARRAY_SIZE(imx6_sabresd_spi_nor_device2));
 }
 
 static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
@@ -1948,6 +1976,10 @@ static void __init mx6_sabresd_board_init(void)
 
 	/* SPI-2 */
 	imx6q_add_ecspi(1, &mx6q_sabresd_spi2_data);
+	//spi_device_init();
+
+	/* SPI- oled */
+	imx6q_add_ecspi(2, &mx6q_sabresd_spi3_data);
 	spi_device_init();
 
 	imx6q_add_mxc_hdmi(&hdmi_data);
