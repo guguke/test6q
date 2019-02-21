@@ -1433,13 +1433,13 @@ static int spi_imx_transfer_oled(struct spi_device *spi,
 		//if(c < (transfer->len<<3) ) return transfer->len;
 		//if(c < 300 ) return transfer->len;
 		//else{
+			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 			return transfer->len;
 		//}
 		}
 		else{// len==0
-			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 		}
