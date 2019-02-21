@@ -335,14 +335,14 @@ static int mx6q_sabresd_spi2_cs[] = {
 };
 #endif
 static int mx6q_sabresd_spi_cs[] = {
-	-1,
+	-1
 };
 static int mx6q_sabresd_spi2_cs[] = {
 	-1,
 	-1
 };
 static int mx6q_sabresd_spi3_cs[] = {
-	-1,
+	-1
 };
 static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
 	.chipselect     = mx6q_sabresd_spi_cs,
@@ -410,6 +410,20 @@ static struct spi_board_info imx6_sabresd_spi_nor_device[] __initdata = {
 		.chip_select = 0,
 		.mode = SPI_MODE_0,
     },
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
+		.bus_num = 1,    //设备挂载第几号spi总线上
+		.chip_select = 1,
+		.mode = SPI_MODE_0,
+    },
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
+		.bus_num = 2,    //设备挂载第几号spi总线上
+		.chip_select = 0,
+		.mode = SPI_MODE_0,
+    },
 #endif
 #if 0
 #if defined(CONFIG_CAN_MCP251X)
@@ -425,37 +439,10 @@ static struct spi_board_info imx6_sabresd_spi_nor_device[] __initdata = {
 #endif
 #endif
 };
-static struct spi_board_info imx6_sabresd_spi_nor_device1[] __initdata = {
-#if defined(CONFIG_SPI_SPIDEV)
-	{
-		.modalias = "spidev",
-		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
-		.bus_num = 1,    //设备挂载第几号spi总线上
-		.chip_select = 1,
-		.mode = SPI_MODE_0,
-    },
-#endif
-};
-static struct spi_board_info imx6_sabresd_spi_nor_device2[] __initdata = {
-#if defined(CONFIG_SPI_SPIDEV)
-	{
-		.modalias = "spidev",
-		.max_speed_hz = 20000000, /* max spi clock (SCK) speed in HZ */
-		.bus_num = 2,    //设备挂载第几号spi总线上
-		.chip_select = 0,
-		.mode = SPI_MODE_0,
-    },
-#endif
-};
-
 static void spi_device_init(void)
 {
 	spi_register_board_info(imx6_sabresd_spi_nor_device,
 				ARRAY_SIZE(imx6_sabresd_spi_nor_device));
-	spi_register_board_info(imx6_sabresd_spi_nor_device1,
-				ARRAY_SIZE(imx6_sabresd_spi_nor_device1));
-	spi_register_board_info(imx6_sabresd_spi_nor_device2,
-				ARRAY_SIZE(imx6_sabresd_spi_nor_device2));
 }
 
 static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
