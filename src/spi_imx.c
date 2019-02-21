@@ -1061,7 +1061,7 @@ static irqreturn_t spi_imx_isr_oled(int irq, void *dev_id)
 	int nByte;
 	u32 ctrl;
 
-	trace_printk("[%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
+	trace_printk(" [[num:%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
 
 
 	txReadFifoOled(spi_imx);
