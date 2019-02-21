@@ -109,6 +109,7 @@ struct spi_imx_devtype_data {
 	void (*reset)(struct spi_imx_data *);
 	unsigned int fifosize;
 };
+static int gDebugNum=0;
 static int gntmp=0;
 static int gnSent=0;
 #define RX_1000 0x100000
@@ -156,6 +157,7 @@ struct spi_imx_data {
 	int retxfer;
 	int pkgSent;// init 0
 	int txrcv;
+	int bus_num;
 };
 #if 0
 	void *p;								\
@@ -400,7 +402,7 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	//return 0;
 	//if(config->cs==0) spi_imx->slave=0;
 	//else spi_imx->slave = 1;
-        trace_printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
+        //trace_printk("   func _config           slave : %d %x ***************************************************\n",spi_imx->slave,spi_imx->rxcount);
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	//if(config->cs==0) ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
@@ -408,7 +410,8 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
 	/* set clock speed */
-	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2);
+	if(spi_imx->bus_num!=2) ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz << 2);
+	else ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz);
 
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
@@ -421,7 +424,8 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	//printk("func config   len : %d ********************** \n",spi_imx->len2send);
 	//ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 	//printk(KERN_DEBUG"%s  config.bpw %d(%x  x8:%d %x \n",__FUNCTION__,config->bpw,config->bpw,8*config->bpw,8*config->bpw);
-	ctrl |= ((config->len<<3)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	if(spi_imx->bus_num!=2) ctrl |= ((config->len<<3)-1) << SPI_IMX2_3_CTRL_BL_OFFSET;// for bits 252*8
+	else ctrl |= ((config->bpw) - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;// normal bits setup
 
 	//printk("  cs cs : %d ********************** \n",config->cs);
 	// burst 1 
@@ -968,6 +972,30 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 	return IRQ_HANDLED;
 #endif
 }
+static int buf2fifoOLED(struct spi_imx_data *spi_imx)
+{
+	void *p = (void*)spi_imx->txbuf;
+	short *pi;
+	int nByte=0;
+	int c;
+	unsigned int s;
+	for(;;){
+	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+	trace_printk("%s   len.txbuf: %d   txout: 0x%08x\n",__FUNCTION__,c,spi_imx->txout);
+	if(spi_imx->txin == spi_imx->txout) break;
+	s= 0x4 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.full
+	//printk(KERN_DEBUG"%s   stat.bit2:%d\n",__FUNCTION__,s);
+	if( s ) break;
+	p = (void*)spi_imx->txbuf;
+	p += spi_imx->txout;
+	pi = (short *)p;
+	writew(*pi, spi_imx->base + MXC_CSPITXDATA);
+	spi_imx->txout = (spi_imx->txout + 2) & RX_FFF;
+	nByte+=2;
+	}
+	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
+	return nByte;
+}
 static int buf2fifo(struct spi_imx_data *spi_imx)
 {
 	void *p = (void*)spi_imx->txbuf;
@@ -1012,6 +1040,59 @@ static int txReadFifo(struct spi_imx_data *spi_imx)
 	return 0;
 }
 
+static irqreturn_t spi_imx_isr_oled(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+	unsigned int s;
+	int nByte;
+	u32 ctrl;
+
+	trace_printk("[%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
+
+	if(spi_imx->pkgSent==-2) return IRQ_HANDLED;
+
+	if(spi_imx->pkgSent==-1){
+		//printk(KERN_DEBUG"%s   pkgSent==-1\n",__FUNCTION__,spi_imx->slave);
+		buf2fifoOLED(spi_imx);
+		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
+		if( s ) return IRQ_HANDLED;
+		//printk(KERN_DEBUG"%s   pkgSent: -1 ==> 0\n",__FUNCTION__);
+		spi_imx->pkgSent=0;
+		ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+		ctrl &= ~0x00030000;
+		//ctrl |= 0x00020000;//low level   rdy
+		writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+		spi_imx->devtype_data.trigger(spi_imx);
+		return IRQ_HANDLED;
+	}
+	txReadFifo(spi_imx);
+	nByte = buf2fifoOLED(spi_imx);
+
+	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
+	if(spi_imx->txrcv==0){
+		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
+		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
+		if(s){
+			spi_imx->pkgSent=-2;
+			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
+			//printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
+		}
+		else{
+			if(spi_imx->pkgSent==1){
+			//printk(KERN_DEBUG"%s   pkgSent: 1 ==> 2\n",__FUNCTION__);
+			ctrl = readl(spi_imx->base + SPI_IMX2_3_CTRL);
+			ctrl &= ~0x00030000;
+			//ctrl |= 0x00020000;//low level   rdy
+			//ctrl |= 0x00010000;// falling edge
+			writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
+			}
+			spi_imx->devtype_data.trigger(spi_imx);
+		}
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_HANDLED;
+}
 static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
@@ -1073,6 +1154,10 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	int i;
 
 	//printk(KERN_DEBUG"%s  isr.main           sp_imx_data->slave : %d ***** \n",__FUNCTION__,spi_imx->slave);
+	if(spi_imx->bus_num==2){
+		spi_imx_isr_oled(irq,spi_imx);
+		return IRQ_HANDLED;
+	}
 	if(spi_imx->slave) spi_imx_isr_slave(irq,spi_imx);
 	else spi_imx_isr_master(irq,spi_imx);
 #if 0
@@ -1090,6 +1175,14 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 	
 }
+static int sameCFG2(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
+{
+	if(pcfg->speed_hz != spi_imx->speed_now) return 0;
+	if(pcfg->bpw != spi_imx->bpw_now ) return 0;
+	if( pcfg->mode != spi_imx->mode_now ) return 0;
+
+	return 1;
+}
 static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 {
 	if(pcfg->speed_hz != spi_imx->speed_now) return 0;
@@ -1099,6 +1192,56 @@ static int sameCFG(struct spi_imx_config *pcfg, struct spi_imx_data *spi_imx)
 
 	return 1;
 }
+static int spi_imx_setupxfer_oled(struct spi_device *spi,
+				 struct spi_transfer *t)
+{
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	struct spi_imx_config config;
+	//printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
+
+	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
+        //trace_printk("bus_num:%d       config.bpw:%d    t->bits_per_word:%d    spi->bits_per_word:%d\n",spi_imx->bus_num,config.bpw,t->bits_per_word,spi->bits_per_word);
+	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
+	config.mode = spi->mode;
+	config.cs = spi->chip_select;
+
+	if (!config.speed_hz)
+		config.speed_hz = spi->max_speed_hz;
+	if (!config.bpw)
+		config.bpw = spi->bits_per_word;
+	if (!config.speed_hz)
+		config.speed_hz = spi->max_speed_hz;
+	config.len = t->len;
+
+	switch(spi_imx->retcfg){
+	case 2:
+	case 1:///  config.ok
+		if(sameCFG2(&config,spi_imx)){
+			spi_imx->retcfg=1;
+			break;
+		}
+		else{
+			if(blank2tx){// not same,blank
+				spi_imx->retcfg=1;// cfg.ok
+				do_config(spi_imx,&config);
+				break;
+			}
+			else{// not same, not blank
+				spi_imx->retcfg=2;// cfg.error
+				break;
+			}
+		}
+		break;
+	default: // config.notcfg
+		spi_imx->retcfg = 1;
+		spi_imx->init = 1;
+		clk_enable(spi_imx->clk);
+		do_config(spi_imx,&config);
+		break;
+	}
+
+	return 0;
+}
 static int spi_imx_setupxfer_master(struct spi_device *spi,
 				 struct spi_transfer *t)
 {
@@ -1107,6 +1250,7 @@ static int spi_imx_setupxfer_master(struct spi_device *spi,
 	//printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
 
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
+        trace_printk("       config.bpw:%d    t->bits_per_word:%d    spi->bits_per_word:%d\n",config.bpw,t->bits_per_word,spi->bits_per_word);
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
 	config.mode = spi->mode;
 	config.cs = spi->chip_select;
@@ -1204,6 +1348,11 @@ static int spi_imx_setupxfer_slave(struct spi_device *spi, struct spi_transfer *
 static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+
+	if(spi_imx->bus_num==2){
+		spi_imx_setupxfer_oled(spi,t);
+		return 0;
+	}
 	if(spi_imx->slave) spi_imx_setupxfer_slave(spi,t);
 	else spi_imx_setupxfer_master(spi,t);
 
@@ -1214,7 +1363,7 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	int c,c1;
 	void *pdes;
 
-	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,len);
+	trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 	if(c>300){
 	//if(c>RX_1000-800){
@@ -1236,6 +1385,58 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	spi_imx->txin = RX_FFF & (spi_imx->txin + len);
 	//printk(KERN_DEBUG"%s   txin: 0x%x      txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
 	return len;
+}
+static int spi_imx_transfer_oled(struct spi_device *spi,
+				struct spi_transfer *transfer)
+{
+	int len,i;
+	int c,c1;
+	void *p;
+	int *pi;
+	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	//printk(KERN_DEBUG"%s     len: %d ======================================\n",__FUNCTION__,transfer->len);
+	//return transfer->len;
+
+	spi_imx->tx_buf = transfer->tx_buf;
+	spi_imx->rx_buf = transfer->rx_buf;
+	spi_imx->count = transfer->len;
+	spi_imx->txfifo = 0;
+
+	if(spi_imx->retcfg==2) return 0;// config.error
+	// retcfg.ok
+	if(spi_imx->pkgSent==-2){
+		tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		//c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
+		//if(c > (transfer->len<<1) ) {
+			spi_imx->pkgSent=-1;
+			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
+			return transfer->len;
+		//}
+		//else return transfer->len;
+	}
+	else{// sending 
+		for(i=0;i<3;i++){
+		len=tx2buf(transfer->tx_buf,transfer->len,spi_imx);
+		if(len>0){
+		c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
+		//printk(KERN_DEBUG"%s     txbuf.len: %d ======================================\n",__FUNCTION__,c);
+		//if(c < (transfer->len<<3) ) return transfer->len;
+		if(c < 300 ) return transfer->len;
+		else{
+			init_completion(&spi_imx->xfer_done);
+			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+			return transfer->len;
+		}
+		}
+		else{// len==0
+			init_completion(&spi_imx->xfer_done);
+			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+		}
+		}// for i
+	}
+
+	return transfer->len;
 }
 static int spi_imx_transfer_master(struct spi_device *spi,
 				struct spi_transfer *transfer)
@@ -1345,6 +1546,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 				struct spi_transfer *transfer)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
+	//if(spi_imx->bus_num==2) return spi_imx_transfer_oled(spi,transfer);
 	if(spi_imx->slave) return spi_imx_transfer_slave(spi,transfer);
 	else return spi_imx_transfer_master(spi,transfer);
 }
@@ -1457,6 +1659,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->retcfg = 0;
 	spi_imx->pkgSent = -2;
 	spi_imx->txrcv=0;
+	spi_imx->bus_num=master->bus_num;// for spi.oled.setting
 
 	for (i = 0; i < master->num_chipselect; i++) {
 		if (spi_imx->chipselect[i] < 0)
