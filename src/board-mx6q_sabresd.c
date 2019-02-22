@@ -139,6 +139,7 @@
 #define SABRESD_CODEC_PWR_EN	IMX_GPIO_NR(4, 10)
 #define SABRESD_HDMI_CEC_IN	IMX_GPIO_NR(4, 11)
 #define SABRESD_PCIE_DIS_B	IMX_GPIO_NR(4, 14)
+#define SABRESD_MAX7359_INT        IMX_GPIO_NR(4, 28)
 
 #define SABRESD_DI0_D0_CS	IMX_GPIO_NR(5, 0)
 #define SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
@@ -904,11 +905,19 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+#if 0
 	{
 		//I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 		I2C_BOARD_INFO("ft5x0x_ts", 0x38),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT0),
 	},
+#endif
+#if 1
+	{
+		I2C_BOARD_INFO("max7359", 0x38),
+		.irq = gpio_to_irq(SABRESD_MAX7359_INT),
+	},
+#endif
 	{
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	},
