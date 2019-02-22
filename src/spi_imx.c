@@ -981,7 +981,7 @@ static int buf2fifoOLED(struct spi_imx_data *spi_imx)
 	unsigned int s;
 	for(;;){
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
-	trace_printk("%s   len.txbuf: %d   txout: 0x%08x\n",__FUNCTION__,c,spi_imx->txout);
+	//trace_printk("%s   len.txbuf: %d   txout: 0x%08x\n",__FUNCTION__,c,spi_imx->txout);
 	if(spi_imx->txin == spi_imx->txout) break;
 	s= 0x4 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.full
 	//printk(KERN_DEBUG"%s   stat.bit2:%d\n",__FUNCTION__,s);
@@ -1061,29 +1061,24 @@ static irqreturn_t spi_imx_isr_oled(int irq, void *dev_id)
 	int nByte;
 	u32 ctrl;
 
-	trace_printk(" [[num:%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
+	//trace_printk(" [[num:%d] %s  isr_oled           sp_imx_data->slave : %d ********************** \n",gDebugNum++,__FUNCTION__,spi_imx->slave);
 
-
-	txReadFifoOled(spi_imx);
-	nByte = buf2fifoOLED(spi_imx);
-
-	//printk(KERN_DEBUG"%s   txrcv: %d  n.buf2fifo:%d\n",__FUNCTION__,spi_imx->txrcv,nByte);
-	//if(spi_imx->txrcv==0){
-		//printk(KERN_DEBUG"%s   txrcv==0  pkgSent:%d\n",__FUNCTION__,spi_imx->pkgSent);
 		s= 0x1 & readl(spi_imx->base + SPI_IMX2_3_STAT);// tx.fifo.blank
 		if(s){
-			spi_imx->pkgSent=-2;
 			spi_imx->devtype_data.intctrl(spi_imx, 0);// disable int
-			//printk(KERN_DEBUG"%s   txrcv==0 numSent:%d\n",__FUNCTION__,gnSent);
-			if(spi_imx->txrcv>0) complete(&spi_imx->xfer_done);								\
+			txReadFifoOled(spi_imx);
+			if(spi_imx->txrcv>0){
+				complete(&spi_imx->xfer_done);								
+				spi_imx->txrcv=0;
+			}
+			nByte = buf2fifoOLED(spi_imx);
+			if(nByte>0) spi_imx->devtype_data.trigger(spi_imx);
+
 		}
 		else{
 			spi_imx->devtype_data.trigger(spi_imx);
 		}
 		return IRQ_HANDLED;
-	//}
-
-	//return IRQ_HANDLED;
 }
 static irqreturn_t spi_imx_isr_master(int irq, void *dev_id)
 {
@@ -1423,8 +1418,7 @@ static int spi_imx_transfer_oled(struct spi_device *spi,
 	spi_imx->count = transfer->len;
 	spi_imx->txfifo = 0;
 
-	if(spi_imx->retcfg==2) return 0;// config.error
-	//else{// sending 
+	//if(spi_imx->retcfg==2) return 0;// config.error
 		for(i=0;i<3;i++){
 		len=tx2bufOLED(transfer->tx_buf,transfer->len,spi_imx);
 		if(len>0){
@@ -1440,11 +1434,11 @@ static int spi_imx_transfer_oled(struct spi_device *spi,
 		//}
 		}
 		else{// len==0
+			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 			init_completion(&spi_imx->xfer_done);
 			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 		}
 		}// for i
-	//}
 
 	return transfer->len;
 }
