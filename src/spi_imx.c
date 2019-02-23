@@ -381,7 +381,7 @@ static void __maybe_unused spi_imx2_3_trigger(struct spi_imx_data *spi_imx)
 
 	reg = readl(spi_imx->base + SPI_IMX2_3_CTRL);
 	reg |= SPI_IMX2_3_CTRL_XCH;
-        //printk("   spidev(trigger) ctrl reg: 0x%08X\n",reg);
+        //trace_printk("      --------------------------------   spidev(trigger) ctrl reg: 0x%08X\n",reg);
 	writel(reg, spi_imx->base + SPI_IMX2_3_CTRL);
 }
 
@@ -1072,10 +1072,14 @@ static irqreturn_t spi_imx_isr_oled(int irq, void *dev_id)
 				spi_imx->txrcv=0;
 			}
 			nByte = buf2fifoOLED(spi_imx);
-			if(nByte>0) spi_imx->devtype_data.trigger(spi_imx);
+			if(nByte>0){
+				spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
+				spi_imx->devtype_data.trigger(spi_imx);
+			}
 
 		}
 		else{
+			//trace_printk("    oled_isr  not blank trigger\n");
 			spi_imx->devtype_data.trigger(spi_imx);
 		}
 		return IRQ_HANDLED;
@@ -1141,10 +1145,12 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 	int i;
 
 	//printk(KERN_DEBUG"%s  isr.main           sp_imx_data->slave : %d ***** \n",__FUNCTION__,spi_imx->slave);
+#if 0
 	if(spi_imx->bus_num==2){
 		spi_imx_isr_oled(irq,spi_imx);
 		return IRQ_HANDLED;
 	}
+#endif
 	if(spi_imx->slave) spi_imx_isr_slave(irq,spi_imx);
 	else spi_imx_isr_master(irq,spi_imx);
 #if 0
@@ -1237,7 +1243,7 @@ static int spi_imx_setupxfer_master(struct spi_device *spi,
 	//printk(KERN_DEBUG"%s   len:%d \n",__FUNCTION__,t->len);
 
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
-        trace_printk("       config.bpw:%d    t->bits_per_word:%d    spi->bits_per_word:%d\n",config.bpw,t->bits_per_word,spi->bits_per_word);
+        //trace_printk("       config.bpw:%d    t->bits_per_word:%d    spi->bits_per_word:%d\n",config.bpw,t->bits_per_word,spi->bits_per_word);
 	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
 	config.mode = spi->mode;
 	config.cs = spi->chip_select;
@@ -1350,7 +1356,7 @@ static int tx2bufOLED(void *p,int len,struct spi_imx_data *spi_imx)
 	int c,c1;
 	void *pdes;
 
-	trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
+	//trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 	if(c>0){
 	//if(c>RX_1000-800){
@@ -1379,7 +1385,7 @@ static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 	int c,c1;
 	void *pdes;
 
-	trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
+	//trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
 	if(c>300){
 	//if(c>RX_1000-800){
@@ -1428,8 +1434,8 @@ static int spi_imx_transfer_oled(struct spi_device *spi,
 		//if(c < 300 ) return transfer->len;
 		//else{
 			spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-			init_completion(&spi_imx->xfer_done);
-			wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
+			//init_completion(&spi_imx->xfer_done);
+			//wait_for_completion_interruptible_timeout(&spi_imx->xfer_done,HZ);
 			return transfer->len;
 		//}
 		}
@@ -1718,7 +1724,16 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		goto out_iounmap;
 	}
 
-	ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
+	switch(spi_imx->bus_num){
+		case 2:
+			ret = request_irq(spi_imx->irq, spi_imx_isr_oled, 0, DRIVER_NAME, spi_imx);
+			break;
+		default:
+			ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
+			break;
+			
+	}
+	//ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
 	if (ret) {
 		dev_err(&pdev->dev, "can't get irq%d: %d\n", spi_imx->irq, ret);
 		goto out_iounmap;
