@@ -975,7 +975,7 @@ static irqreturn_t spi_imx_isr_slave(int irq, void *dev_id)
 static int buf2fifoOLED(struct spi_imx_data *spi_imx)
 {
 	void *p = (void*)spi_imx->txbuf;
-	short *pi;
+	int *p32;
 	int nByte=0;
 	int c;
 	unsigned int s;
@@ -988,10 +988,10 @@ static int buf2fifoOLED(struct spi_imx_data *spi_imx)
 	if( s ) break;
 	p = (void*)spi_imx->txbuf;
 	p += spi_imx->txout;
-	pi = (short *)p;
-	writew(*pi, spi_imx->base + MXC_CSPITXDATA);
-	spi_imx->txout = (spi_imx->txout + 2) & RX_FFF;
-	nByte+=2;
+	p32 = (int*)p;
+	writel(*p32, spi_imx->base + MXC_CSPITXDATA);
+	spi_imx->txout = (spi_imx->txout + 4) & RX_FFF;
+	nByte+=4;
 	}
 	//printk(KERN_DEBUG"%s    return  txin: 0x%x  txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
 	return nByte;
@@ -1024,8 +1024,8 @@ static int txReadFifoOled(struct spi_imx_data *spi_imx)
 {
 	while (spi_imx->devtype_data.rx_available(spi_imx)) {
 	//if (spi_imx->devtype_data.rx_available(spi_imx)) {
-		readb(spi_imx->base + MXC_CSPIRXDATA);
-		spi_imx->txrcv++;
+		readl(spi_imx->base + MXC_CSPIRXDATA);
+		spi_imx->txrcv+=4;
 		//printk(KERN_DEBUG"%s   txrcv:%d   len:%d  /4:%d\n",__FUNCTION__,spi_imx->txrcv,spi_imx->len_now,n63);
 			//printk(KERN_DEBUG"%s   txrcv:%d ====   len:%d  /4:%d\n",__FUNCTION__,spi_imx->txrcv,spi_imx->len_now,n63);
 			//complete(&spi_imx->xfer_done);								\
@@ -1214,7 +1214,7 @@ static int spi_imx_setupxfer_oled(struct spi_device *spi,
 			break;
 		}
 		else{
-			if(blank2tx){// not same,blank
+			if(blank2tx(spi_imx)){// not same,blank
 				spi_imx->retcfg=1;// cfg.ok
 				do_config(spi_imx,&config);
 				break;
@@ -1264,7 +1264,7 @@ static int spi_imx_setupxfer_master(struct spi_device *spi,
 			break;
 		}
 		else{
-			if(blank2tx){// not same,blank
+			if(blank2tx(spi_imx)){// not same,blank
 				spi_imx->retcfg=1;// cfg.ok
 				do_config(spi_imx,&config);
 				break;
@@ -1351,10 +1351,11 @@ static int spi_imx_setupxfer(struct spi_device *spi, struct spi_transfer *t)
 
 	return 0;
 }
-static int tx2bufOLED(void *p,int len,struct spi_imx_data *spi_imx)
+static int tx2bufOLED(void *p,int len1,struct spi_imx_data *spi_imx)
 {
 	int c,c1;
 	void *pdes;
+	int len=(len1>>2)<<2;
 
 	//trace_printk("%s     len: %d ======================================\n",__FUNCTION__,len);
 	c = RX_FFF & ( RX_1000 + spi_imx->txin - spi_imx->txout);
@@ -1378,7 +1379,7 @@ static int tx2bufOLED(void *p,int len,struct spi_imx_data *spi_imx)
 	}
 	spi_imx->txin = RX_FFF & (spi_imx->txin + len);
 	//printk(KERN_DEBUG"%s   txin: 0x%x      txout: 0x%x\n",__FUNCTION__,spi_imx->txin,spi_imx->txout);
-	return len;
+	return len1;
 }
 static int tx2buf(void *p,int len,struct spi_imx_data *spi_imx)
 {
