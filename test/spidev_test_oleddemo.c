@@ -37,7 +37,9 @@ static uint8_t bits = 9;
 static uint32_t speed = 16000000;
 static uint16_t delay;
 
-	uint8_t tx[] = { 0xff,0x00};
+uint32_t buf32[2];
+	uint8_t tx[] = { 0xff,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00};
 static void transfer()
 {
 	int ret;
@@ -57,11 +59,13 @@ static void transfer()
 		0xF0, 0x0D,
 	};
 #endif
+		//.len = ARRAY_SIZE(tx),
 	uint8_t rx[ARRAY_SIZE(tx)] = {0, };
 	struct spi_ioc_transfer tr = {
-		.tx_buf = (unsigned long)tx,
+		.tx_buf = (unsigned long)buf32,
 		.rx_buf = (unsigned long)rx,
-		.len = ARRAY_SIZE(tx),
+		//.len = ARRAY_SIZE(tx),
+		.len = 4,
 		.delay_usecs = delay,
 		.speed_hz = speed,
 		.bits_per_word = bits,
@@ -178,8 +182,18 @@ static void parse_opts(int argc, char *argv[])
 
 void transfer01(int b0,int b1)
 {
+	char *p;
+	p=(char*)buf32;
+	int i1,i2;
 	tx[0]=b0;
 	tx[1]=b1;
+	tx[2]=b0;
+	tx[3]=b1;
+	i1 = (0x0ff & b1)<<8;
+	i2 = (0x0ff & b0);
+	buf32[0]=i1 | i2;
+	//*p++=b0;
+	//*p=b1;
 	transfer();
 }
 int main(int argc, char *argv[])
