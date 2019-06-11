@@ -279,7 +279,8 @@ early_param("mem_clk_on", enable_mem_clk_in_wait);
 
 static int __init set_enet_irq_to_gpio(char *p)
 {
-	enet_to_gpio_6 = true;
+	//enet_to_gpio_6 = true;
+	enet_to_gpio_6 = false;
 	return 0;
 }
 

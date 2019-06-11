@@ -88,8 +88,8 @@
 
 #define SABRESD_USR_DEF_GRN_LED	IMX_GPIO_NR(1, 1)
 #define SABRESD_USR_DEF_RED_LED	IMX_GPIO_NR(1, 2)
-#define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
-#define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
+//#define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
+//#define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
 #define SABRESD_LED1	IMX_GPIO_NR(1, 7)
 #define SABRESD_LED2	IMX_GPIO_NR(1, 8)
 #define SABRESD_LED3	IMX_GPIO_NR(6, 7)
@@ -320,7 +320,6 @@ static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 
 	return 0;
 }
-
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_sabresd_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
@@ -1739,8 +1738,8 @@ static void __init imx6q_add_device_gpio_leds(void) {}
 }
 
 static struct gpio_keys_button imx6q_buttons[] = {
-	GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0, 1),
-	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0, 1),
+	//GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0, 1),
+	//GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0, 1),
 	GPIO_BUTTON(SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1, 1),
 };
 
