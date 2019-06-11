@@ -158,8 +158,10 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
 
 	/*I2C3 */
-	MX6Q_PAD_GPIO_3__I2C3_SCL,
-	MX6Q_PAD_GPIO_6__I2C3_SDA,
+	//MX6Q_PAD_GPIO_3__I2C3_SCL,
+	//MX6Q_PAD_GPIO_6__I2C3_SDA,
+	MX6Q_PAD_GPIO_3__GPIO_1_3,
+	MX6Q_PAD_GPIO_6__GPIO_1_6,
 	
 
 	/* DISPLAY */

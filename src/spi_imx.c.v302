@@ -194,17 +194,13 @@ struct spi_imx_data {
 			printk(KERN_DEBUG"    rx overflow , slave %d \n",spi_imx->slave);		\
 		}							\
 
-			*(type*)p = val;					
 #endif
 
 #define MXC_SPI_BUF_RX(type)						\
 static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 {									\
 	unsigned int val = readl(spi_imx->base + MXC_CSPIRXDATA);	\
-	unsigned int valx;  \
 	void *p;								\
-	short *p16;								\
-	char *p8;								\
 	int c,reg,reg1,treg,dreg,creg;								\
 	if(spi_imx->slave){						\
 	reg=readl(spi_imx->base + SPI_IMX2_3_STAT);	\
@@ -223,9 +219,7 @@ static void spi_imx_buf_rx_##type(struct spi_imx_data *spi_imx)		\
 		}								\
 			p = (void*)spi_imx->rxbuf;					\
 			p += spi_imx->rxin;					\
-			valx = (val>>16) & 0x0ffff;  \
-			valx |= (val & 0x0ffff) << 16;  \
-			*(type*)p = valx;					\
+			*(type*)p = val;					\
 			spi_imx->rxin = RX_FFF & ( spi_imx->rxin +  sizeof(type));				\
 		}								\
 	}								\
@@ -1005,10 +999,7 @@ static int buf2fifoOLED(struct spi_imx_data *spi_imx)
 static int buf2fifo(struct spi_imx_data *spi_imx)
 {
 	void *p = (void*)spi_imx->txbuf;
-	char *p8;
 	int *pi;
-	short *p16;
-	int n32,v32;
 	int nByte=0;
 	int c;
 	unsigned int s;
@@ -1022,13 +1013,7 @@ static int buf2fifo(struct spi_imx_data *spi_imx)
 	p = (void*)spi_imx->txbuf;
 	p += spi_imx->txout;
 	pi = (int *)p;
-	p16 = (short*)p;
-	//n32 = (p16[1] & 0x0ffff)<<16;
-	//n32 |= (*p16) & 0x0ffff;
-	v32 = *pi;
-	n32 = (v32 >> 16)&0x0ffff;
-	n32 |= (v32&0x0ffff)<<16;
-	writel(n32, spi_imx->base + MXC_CSPITXDATA);
+	writel(*pi, spi_imx->base + MXC_CSPITXDATA);
 	spi_imx->txout = (spi_imx->txout + 4) & RX_FFF;
 	nByte+=4;
 	}

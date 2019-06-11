@@ -1,4 +1,8 @@
 
+// 20190611
+6 spi_imx.c.v302 before spi.endian b31.16<==>b15.0
+6.1 spi_imx.c.v303   spi_endian <==>
+
 5 board_.......v100.*   board ver2
 
 4. v2.1.0.1.1 , spi,master, using RDY.pin 
