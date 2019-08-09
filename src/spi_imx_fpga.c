@@ -269,7 +269,8 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
 
-	ctrl |= (config->bpw - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	//ctrl |= (config->bpw - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	ctrl |= (0x1000 - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
 
@@ -653,6 +654,9 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
 	struct spi_imx_config config;
+
+        //if(t>0) printk("dbgdbg -- t->bits_per_word: %d , spi->bits_per_word: %d \n",t->bits_per_word,spi->bits_per_word);
+        //else printk("dbgdbg -- spi->bits_per_word: %d \n",spi->bits_per_word);
 
 	clk_enable(spi_imx->clk);
 	config.bpw = t ? t->bits_per_word : spi->bits_per_word;
