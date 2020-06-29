@@ -105,21 +105,21 @@ struct spi_imx_data {
 
 	struct spi_imx_devtype_data devtype_data;
        
+	int flag_55;
         int rdy;
         int rxonly;
         int rxstop;
         struct spi_imx_config cfg_old;
         struct spi_imx_config cfg_new;
         int rxin;
-	int x1[4];
 	int rxout;
-	int x2[4];
-	int txin;
-	int x3[4];
-	int txout;// offset 32 , 
-	int x4[4];
+	int tx_in;
+	int tx_out;// offset 32 , 
+	int flag_aa;
 	int newConfig;
 	unsigned int newCount,count1;// old count
+	int bus_num;
+	int flag_55aa
 };
 
 #define MXC_SPI_BUF_RX(type)						\
@@ -177,11 +177,11 @@ static void spi_imx_buf_tx1_##type(struct spi_imx_data *spi_imx)		\
         u32 *p32;                                                       \
         unsigned int offset;                                            \
                                                                         \
-        offset = spi_imx->txout;                                        \
+        offset = spi_imx->tx_out;                                        \
         p32 = (u32*)spi_imx->tx_buf;                                    \
         val = p32[offset];                                              \
         offset = SPI_BUF_MASK32 & (offset+1);                           \
-        spi_imx->txout = offset;                                        \
+        spi_imx->tx_out = offset;                                        \
 									\
 	spi_imx->count -= sizeof(type);					\
 									\
@@ -698,11 +698,11 @@ static void spi_imx_push(struct spi_imx_data *spi_imx)
 		if (!spi_imx->count) break;
                 //trace_printk("    func _push  tx    txfifo:%d\n",spi_imx->txfifo);
 		spi_imx->tx(spi_imx);
-                //trace_printk("    func _push  tx    txin:%d\n",spi_imx->txin);
+                //trace_printk("    func _push  tx    tx_in:%d\n",spi_imx->tx_in);
 		spi_imx->txfifo++;
 	}
         //trace_printk("  end   func _push  tx    txfifo:%d\n",spi_imx->txfifo);
-                trace_printk("    func _push  tx    txin:%d\n",spi_imx->txin);
+                //trace_printk("    func _push  tx    tx_in:%d\n",spi_imx->tx_in);
 
 	spi_imx->devtype_data.trigger(spi_imx);
 }
@@ -712,11 +712,11 @@ static void spi_imx_push_rx(struct spi_imx_data *spi_imx)
 		if (!spi_imx->count) break;
                 //trace_printk("    func _push  tx    txfifo:%d\n",spi_imx->txfifo);
 		spi_imx->tx(spi_imx);
-                //trace_printk("    func _push  tx    txin:%d\n",spi_imx->txin);
+                //trace_printk("    func _push  tx    tx_in:%d\n",spi_imx->tx_in);
 		spi_imx->txfifo++;
 	}
         //trace_printk("  end   func _push  tx    txfifo:%d\n",spi_imx->txfifo);
-                trace_printk("    func _push_rx  tx    txin:%d\n",spi_imx->txin);
+                //trace_printk("    func _push_rx  tx    tx_in:%d\n",spi_imx->tx_in);
 
 	spi_imx->devtype_data.trigger(spi_imx);
 }
@@ -724,7 +724,7 @@ static irqreturn_t spi_imx_isr_rx(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
         int n;
-        trace_printk("             -- start  spi_rx_isr gCount:%d    tx.count:%d   rx_buf.rxin:%d  rxout:%d   -- txin:%d   spi_imx:0x%08x\n",++gCountISRrcv,spi_imx->count,spi_imx->rxin,spi_imx->rxout,spi_imx->txin,spi_imx);
+        //trace_printk("             -- start  spi_rx_isr gCount:%d    tx.count:%d   rx_buf.rxin:%d  rxout:%d   -- tx_in:%d   spi_imx:0x%08x\n",++gCountISRrcv,spi_imx->count,spi_imx->rxin,spi_imx->rxout,spi_imx->tx_in,spi_imx);
 
 	while (spi_imx->devtype_data.rx_available(spi_imx)) {
                 //trace_printk("   available rx   txfifo:%d\n",spi_imx->txfifo);
@@ -732,83 +732,55 @@ static irqreturn_t spi_imx_isr_rx(int irq, void *dev_id)
 		spi_imx->txfifo--;
 	}
         //trace_printk("   end.while. available rx   txfifo:%d  rx_buf.rxin:%d  rxout:%d\n",spi_imx->txfifo,spi_imx->rxin,spi_imx->rxout);
-        //trace_printk("  end.while isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
+        //trace_printk("  end.while isr_rx_  count:%d tx_in:%d\n",spi_imx->count,spi_imx->tx_in);
 
 	if (spi_imx->count) {
 		spi_imx_push_rx(spi_imx);
-        trace_printk(" return_if_count  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
+        //trace_printk(" return_if_count  isr_rx_  count:%d tx_in:%d\n",spi_imx->count,spi_imx->tx_in);
 		return IRQ_HANDLED;
 	}
-        //trace_printk(" if.count  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
+        //trace_printk(" if.count  isr_rx_  count:%d tx_in:%d\n",spi_imx->count,spi_imx->tx_in);
 
 	if (spi_imx->txfifo) {
 		/* No data left to push, but still waiting for rx data,
 		 * enable receive data available interrupt.
 		 */
 		spi_imx->devtype_data.intctrl( spi_imx, MXC_INT_RR);
-        trace_printk(" return_txfifo_  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
+        //trace_printk(" return_txfifo_  isr_rx_  count:%d tx_in:%d\n",spi_imx->count,spi_imx->tx_in);
 		return IRQ_HANDLED;
 	}
 
         //end tx
-	// 
-        trace_printk("   isr_rx_end_tx rxin:%d (%x (%x rxout:%d (%x (%x\n",spi_imx->rxin,spi_imx->rxin,spi_imx->rxin>>6,spi_imx->rxout,spi_imx->rxout,spi_imx->rxout>>6);
+        //trace_printk("   isr_rx_end_tx rxin:%d (%x (%x rxout:%d (%x (%x\n",spi_imx->rxin,spi_imx->rxin,spi_imx->rxin>>6,spi_imx->rxout,spi_imx->rxout,spi_imx->rxout>>6);
         if(spi_imx->newConfig){
 		spi_imx->count = spi_imx->newCount;
-		//spi_imx->txin = spi_imx->newCount>>2;
+		//spi_imx->tx_in = spi_imx->newCount>>2;
 		spi_imx->count1 = spi_imx->newCount;
 		spi_imx->newConfig = 0;
 	      spi_imx->devtype_data.config(spi_imx, &(spi_imx->cfg_new));
-        trace_printk("   isr_rx_newConfig count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
+        //trace_printk("   isr_rx_newConfig count:%d tx_in:%d\n",spi_imx->count,spi_imx->tx_in);
               spi_imx->rxin=0;
               spi_imx->rxout=0;
 	      spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 	      return IRQ_HANDLED;
 	}
 	else{
-		//spi_imx->count = spi_imx->txin<<2;
+		//spi_imx->count = spi_imx->tx_in<<2;
 		spi_imx->count = spi_imx->count1;
+        //trace_printk(" %s   count:%d rxin:%d(%x rxout:%d(%x\n",__func__,spi_imx->count,spi_imx->rxin,spi_imx->rxin,spi_imx->rxout,spi_imx->rxout);
 	        complete(&spi_imx->xfer_done);
-        trace_printk("   isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
                 //trace_printk("   end.   wake_spi_rx_isr count:%d\n",gCountISRrcv);
 	        spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
 	        return IRQ_HANDLED;
 	}
-#if 0
-	spi_imx->devtype_data.intctrl(spi_imx, 0);
-	complete(&spi_imx->xfer_done);
-        //trace_printk("   end.wake  spi...rx  .isr count:%d\n",gCountISRrcv);
 	return IRQ_HANDLED;
-
-        n = ( SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->rxin - spi_imx->rxout )) << 2;
-        if( n > 0x10000 || spi_imx->rxstop ) {        // full
-          spi_imx->rxstop = 0;
-	  spi_imx->devtype_data.intctrl(spi_imx, 0);
-	  complete(&spi_imx->xfer_done);
-	  return IRQ_HANDLED;
-        }
-        spi_imx->count = spi_imx->txin << 2;
-#endif
-	return IRQ_HANDLED;
-#if 0
-        if(spi_imx->txin != spi_imx->txout ){
-                spi_imx->count = (SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->txin - spi_imx->txout ) ) <<2;
-                //printk("  spi.isr count:%d\n",spi_imx->count);
-		return IRQ_HANDLED;
-        }
-#endif
-#if 0
-	spi_imx->devtype_data.intctrl(spi_imx, 0);
-	complete(&spi_imx->xfer_done);
-	return IRQ_HANDLED;
-#endif
 }
 
 static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
         //printk("   start  spi.isr \n");
-	if(spi_imx->rxonly) return spi_imx_isr_rx(irq,dev_id);
+	//if(spi_imx->rxonly) return spi_imx_isr_rx(irq,dev_id);
 
 	while (spi_imx->devtype_data.rx_available(spi_imx)) {
 		spi_imx->rx(spi_imx);
@@ -827,104 +799,13 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 		spi_imx->devtype_data.intctrl( spi_imx, MXC_INT_RR);
 		return IRQ_HANDLED;
 	}
-#if 0
-        if(spi_imx->txin != spi_imx->txout ){
-                spi_imx->count = (SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->txin - spi_imx->txout ) ) <<2;
-                //printk("  spi.isr count:%d\n",spi_imx->count);
-		return IRQ_HANDLED;
-        }
-#endif
 	spi_imx->devtype_data.intctrl(spi_imx, 0);
 	complete(&spi_imx->xfer_done);
+        //trace_printk(" %s   count:%d rxin:%d(%x rxout:%d(%x\n",__func__,spi_imx->count,spi_imx->rxin,spi_imx->rxin,spi_imx->rxout,spi_imx->rxout);
 
         //printk("   end  spi.isr \n");
 	return IRQ_HANDLED;
 }
-#if 0
-static irqreturn_t spi_imx_isr_rx(int irq, void *dev_id)
-{
-	struct spi_imx_data *spi_imx = dev_id;
-        int n;
-        trace_printk("             -- start  spi_rx_isr gCount:%d    tx.count:%d   rx_buf.rxin:%d  rxout:%d   -- txin:%d   spi_imx:0x%08x\n",++gCountISRrcv,spi_imx->count,spi_imx->rxin,spi_imx->rxout,spi_imx->txin,spi_imx);
-
-	while (spi_imx->devtype_data.rx_available(spi_imx)) {
-                //trace_printk("   available rx   txfifo:%d\n",spi_imx->txfifo);
-		spi_imx->rx(spi_imx);
-		spi_imx->txfifo--;
-	}
-        //trace_printk("   end.while. available rx   txfifo:%d  rx_buf.rxin:%d  rxout:%d\n",spi_imx->txfifo,spi_imx->rxin,spi_imx->rxout);
-        //trace_printk("  end.while isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-
-	if (spi_imx->count) {
-		spi_imx_push_rx(spi_imx);
-        trace_printk(" return_if_count  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-		return IRQ_HANDLED;
-	}
-        //trace_printk(" if.count  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-
-	if (spi_imx->txfifo) {
-		/* No data left to push, but still waiting for rx data,
-		 * enable receive data available interrupt.
-		 */
-		spi_imx->devtype_data.intctrl( spi_imx, MXC_INT_RR);
-        trace_printk(" return_txfifo_  isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-		return IRQ_HANDLED;
-	}
-
-        //end tx
-	// 
-        trace_printk("   isr_rx_end_tx rxin:%d (%x (%x rxout:%d (%x (%x\n",spi_imx->rxin,spi_imx->rxin,spi_imx->rxin>>6,spi_imx->rxout,spi_imx->rxout,spi_imx->rxout>>6);
-        if(spi_imx->newConfig){
-		spi_imx->count = spi_imx->newCount;
-		//spi_imx->txin = spi_imx->newCount>>2;
-		spi_imx->count1 = spi_imx->newCount;
-		spi_imx->newConfig = 0;
-	      spi_imx->devtype_data.config(spi_imx, &(spi_imx->cfg_new));
-        trace_printk("   isr_rx_newConfig count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-              spi_imx->rxin=0;
-              spi_imx->rxout=0;
-	      spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-	      return IRQ_HANDLED;
-	}
-	else{
-		//spi_imx->count = spi_imx->txin<<2;
-		spi_imx->count = spi_imx->count1;
-	        complete(&spi_imx->xfer_done);
-        trace_printk("   isr_rx_  count:%d txin:%d\n",spi_imx->count,spi_imx->txin);
-                //trace_printk("   end.   wake_spi_rx_isr count:%d\n",gCountISRrcv);
-	        spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-	        return IRQ_HANDLED;
-	}
-#if 0
-	spi_imx->devtype_data.intctrl(spi_imx, 0);
-	complete(&spi_imx->xfer_done);
-        //trace_printk("   end.wake  spi...rx  .isr count:%d\n",gCountISRrcv);
-	return IRQ_HANDLED;
-
-        n = ( SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->rxin - spi_imx->rxout )) << 2;
-        if( n > 0x10000 || spi_imx->rxstop ) {        // full
-          spi_imx->rxstop = 0;
-	  spi_imx->devtype_data.intctrl(spi_imx, 0);
-	  complete(&spi_imx->xfer_done);
-	  return IRQ_HANDLED;
-        }
-        spi_imx->count = spi_imx->txin << 2;
-#endif
-	return IRQ_HANDLED;
-#if 0
-        if(spi_imx->txin != spi_imx->txout ){
-                spi_imx->count = (SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->txin - spi_imx->txout ) ) <<2;
-                //printk("  spi.isr count:%d\n",spi_imx->count);
-		return IRQ_HANDLED;
-        }
-#endif
-#if 0
-	spi_imx->devtype_data.intctrl(spi_imx, 0);
-	complete(&spi_imx->xfer_done);
-	return IRQ_HANDLED;
-#endif
-}
-#endif
 static irqreturn_t spi_imx_isr2(int irq, void *dev_id)
 {
 	struct spi_imx_data *spi_imx = dev_id;
@@ -956,7 +837,15 @@ static irqreturn_t spi_imx_isr2(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
-
+static void traceArray(int *p32,int len)
+{
+	int i;
+	int len4 = (len+7)>>3;;
+	trace_printk("%pS\n",__builtin_return_address(0));
+	for(i=0;i<len4;i++){
+		trace_printk("%8x %8x %8x %8x %8x %8x %8x %8x\n",*p32++,*p32++,*p32++,*p32++,*p32++,*p32++,*p32++,*p32++);
+	}
+}
 static int spi_imx_setupxfer_rx(struct spi_device *spi,
 				 struct spi_transfer *t)
 {
@@ -966,12 +855,28 @@ static int spi_imx_setupxfer_rx(struct spi_device *spi,
         int flagDoConfig=0;
 	unsigned int reg;
 
-        trace_printk(" --   %s ( %pS  gCount:%d  rxin:%d = rxout:%d    txin:%d = txout:%d  addr.rxout: %x , addr.txin: %x\n",__func__,__builtin_return_address(0),++gCountSetupxRcv,spi_imx->rxin,spi_imx->rxout,spi_imx->txin,spi_imx->txout,&(spi_imx->rxout),&(spi_imx->txin));
+        //trace_printk(" --   %s ( %pS  gCount:%d  rxin:%d = rxout:%d    tx_in:%d = tx_out:%d  addr.rxout: %x , addr.tx_in: %x\n",__func__,__builtin_return_address(0),++gCountSetupxRcv,spi_imx->rxin,spi_imx->rxout,spi_imx->tx_in,spi_imx->tx_out,&(spi_imx->rxout),&(spi_imx->tx_in));
+
+	//traceArray(spi_imx,sizeof(struct spi_imx_data) >> 2);
 
 	//clk_enable(spi_imx->clk);
-	bpw = t ? t->bits_per_word : 32;
+	if(t){
+		if(t->bits_per_word>0) bpw = t->bits_per_word;
+		else if(spi->bits_per_word>0) bpw = spi->bits_per_word;
+		else bpw = 32;
+
+		if(t->speed_hz > 0 ) config.speed_hz = t->speed_hz;
+		else if(spi->max_speed_hz > 0 ) config.speed_hz = spi->max_speed_hz;
+		else config.speed_hz = 5000000;
+	}
+	else{
+		if(spi->bits_per_word>0) bpw = spi->bits_per_word;
+		else bpw = 32;
+		if(spi->max_speed_hz > 0 ) config.speed_hz = spi->max_speed_hz;
+		else config.speed_hz = 5000000;
+	}
 	//config.bpw = t ? t->bits_per_word : spi->bits_per_word;
-	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
+	//config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
 	config.mode = spi->mode;
 	config.cs = spi->chip_select;
         
@@ -986,6 +891,7 @@ static int spi_imx_setupxfer_rx(struct spi_device *spi,
           if(len==256 || len==252) bpw=len<<3;
         }
 	config.bpw = bpw;
+	//trace_printk(" %s bpw:%d cfg_speed:%d cfg_mode:0x%x cfg_len:%d\n",__func__,bpw,config.speed_hz,config.mode,len);
 
         //same config ? 
         if(config.bpw!=spi_imx->cfg_old.bpw) flagDoConfig=1;
@@ -1005,8 +911,8 @@ static int spi_imx_setupxfer_rx(struct spi_device *spi,
               spi_imx->rxin=0;
               spi_imx->rxout=0;
 	      spi_imx->newConfig = 0;
-              return 0;
           }
+	  else {
           spi_imx->rxstop = 1;
           spi_imx->cfg_old.bpw = config.bpw;
           spi_imx->cfg_old.speed_hz = config.speed_hz;
@@ -1018,20 +924,10 @@ static int spi_imx_setupxfer_rx(struct spi_device *spi,
           spi_imx->cfg_new.cs = config.cs;
 	  spi_imx->newConfig = 1;
           //printk(" new config bpw:%d  speed:%d mode:%x\n",config.bpw,config.speed_hz,config.mode);
-#if 0
-          for(;;){
-	    reg = readl(spi_imx->base + SPI_IMX2_3_INT);
-            if(reg==0) break;
-	    init_completion(&spi_imx->xfer_done);
-	    wait_for_completion_timeout(&spi_imx->xfer_done,3);
-          }
-
-	  spi_imx->devtype_data.config(spi_imx, &config);
-          spi_imx->rxin=0;
-          spi_imx->rxout=0;
-	//clk_disable(spi_imx->clk);
-#endif
+	  }
         }
+	//trace_printk(" end_xfer_rx \n");
+	//traceArray(spi_imx,sizeof(struct spi_imx_data) >> 2);
 	return 0;
 }
 static int spi_imx_setupxfer(struct spi_device *spi,
@@ -1043,15 +939,31 @@ static int spi_imx_setupxfer(struct spi_device *spi,
         int flagDoConfig=0;
 	unsigned int reg;
 
-        if(spi_imx->rxonly) return spi_imx_setupxfer_rx(spi,t);
+        //if(spi_imx->rxonly) return spi_imx_setupxfer_rx(spi,t);
 
-        //if(t>0) printk("dbgdbg setupxfer -- t->bits_per_word: %d , spi->bits_per_word: %d \n",t->bits_per_word,spi->bits_per_word);
+	//trace_printk(" %s -- t->bits_per_word: %d ,t_speed:%d  spi->bits_per_word: %d spi_speed:%d t_len:%d \n",__func__,
+		//t->bits_per_word,t->speed_hz,spi->bits_per_word,spi->max_speed_hz,t->len);
         //else printk("dbgdbg setupxfer -- spi->bits_per_word: %d \n",spi->bits_per_word);
 
 	//clk_enable(spi_imx->clk);
-	bpw = t ? t->bits_per_word : 32;
+	if(t){
+		if(t->bits_per_word>0) bpw = t->bits_per_word;
+		else if(spi->bits_per_word>0) bpw = spi->bits_per_word;
+		else bpw = 32;
+
+		if(t->speed_hz > 0 ) config.speed_hz = t->speed_hz;
+		else if(spi->max_speed_hz > 0 ) config.speed_hz = spi->max_speed_hz;
+		else config.speed_hz = 5000000;
+	}
+	else{
+		if(spi->bits_per_word>0) bpw = spi->bits_per_word;
+		else bpw = 32;
+		if(spi->max_speed_hz > 0 ) config.speed_hz = spi->max_speed_hz;
+		else config.speed_hz = 5000000;
+	}
+	//bpw = t ? t->bits_per_word : 32;
 	//config.bpw = t ? t->bits_per_word : spi->bits_per_word;
-	config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
+	//config.speed_hz  = t ? t->speed_hz : spi->max_speed_hz;
 	config.mode = spi->mode;
 	config.cs = spi->chip_select;
         
@@ -1061,6 +973,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
           return 0;
         }
         len=t->len;
+	//trace_printk(" %s bpw:%d cfg_speed:%d cfg_mode:0x%x cfg_len:%d\n",__func__,bpw,config.speed_hz,config.mode,len);
         if(bpw>32) bpw=bpw<<5;
         else if(bpw==8 || bpw==32 || bpw==16){
           if(len==256 || len==252) bpw=len<<3;
@@ -1121,44 +1034,62 @@ int tx2buf(void *p,int len, struct spi_imx_data *spi_imx)
 {
         int i;
         int len32=len>>2;
-        unsigned int *p32,*p32des;
+        unsigned int *p32,*p32des,s32;
         int offset;
         int left;
 
-        left = (SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->txout - spi_imx->txin ))<<2;
+        left = (SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->tx_out - spi_imx->tx_in ))<<2;
         if( left!=0 && left <= len ) return 0;
 
         p32des =( unsigned int *)spi_imx->tx_buf;
-        offset = spi_imx->txin;
+        offset = spi_imx->tx_in;
         p32 = (unsigned int*)p;
+	if(0==spi_imx->bus_num){
+        for(i=0;i<len32;i++){
+	  s32 = *p32++;
+          p32des[offset++] = (s32<<16) | (s32>>16);
+          offset &= SPI_BUF_MASK32;
+        }
+	}
+	else{
         for(i=0;i<len32;i++){
           p32des[offset++] = *p32++;
           offset &= SPI_BUF_MASK32;
         }
-        spi_imx->txin = offset;
+	}
+        spi_imx->tx_in = offset;
 
         return len;
 }
 int buf2rx(unsigned char *p,int len, struct spi_imx_data *spi_imx)
 {
         int n,i;
-	unsigned int *p32,*p32src;
+	unsigned int *p32,*p32src,s32;
 	int offset;
         int len32=len>>2;
 
         n = ( SPI_BUF_MASK32 & ( SPI_BUF_LEN32 + spi_imx->rxin - spi_imx->rxout )) << 2;
         if(n<len) return 0;
-	trace_printk(" in:%d out:%d len:%d  txin:%d\n",spi_imx->rxin,spi_imx->rxout,n,spi_imx->txin);
+	//trace_printk(" in:%d out:%d len:%d  tx_in:%d\n",spi_imx->rxin,spi_imx->rxout,n,spi_imx->tx_in);
 
 	p32src = (unsigned int *) spi_imx->rx_buf;
         offset = spi_imx->rxout;
         p32 = (unsigned int*)p;
+	if(1==spi_imx->bus_num){
+        for(i=0;i<len32;i++){
+	  s32 = p32src[offset++];
+          *p32++ = (s32<<16) | (s32>>16);
+          offset &= SPI_BUF_MASK32;
+        }
+	}
+	else{
         for(i=0;i<len32;i++){
           *p32++ = p32src[offset++];
           offset &= SPI_BUF_MASK32;
         }
+	}
 	spi_imx->rxout = offset;
-	trace_printk("  end__  in:%d out:%d len:%d  txin:%d\n",spi_imx->rxin,spi_imx->rxout,n,spi_imx->txin);
+	//trace_printk("  end__  in:%d out:%d len:%d  tx_in:%d\n",spi_imx->rxin,spi_imx->rxout,n,spi_imx->tx_in);
 
         return len;
 }
@@ -1171,7 +1102,7 @@ static int spi_imx_transfer_rx(struct spi_device *spi,
 	bpw = transfer ? transfer->bits_per_word : 32;
         bpw &= 0x0ff;
         
-        //printk("dbgdbg _transfer \n");
+	//traceArray(spi_imx,sizeof(struct spi_imx_data) >> 2);
 
 	//clk_enable(spi_imx->clk);
 	//spi_imx->tx_buf = transfer->tx_buf;
@@ -1184,24 +1115,23 @@ static int spi_imx_transfer_rx(struct spi_device *spi,
 	init_completion(&spi_imx->xfer_done);
 	if(spi_imx->newConfig){
 	  spi_imx->newCount = transfer->len;// new send count , 
-           trace_printk("   set newCount: %d\n",spi_imx->newCount);
+           //trace_printk("   set newCount: %d\n",spi_imx->newCount);
 	
 	  spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
         for(;;){
            //trace_printk("   transfer_rx wait\n");
-	   wait_for_completion(&spi_imx->xfer_done);
+	   wait_for_completion_killable_timeout(&spi_imx->xfer_done,HZ<<2);
 	   if(spi_imx->newConfig) continue;
 	   //wait_for_completion_timeout(&spi_imx->xfer_done,3);
            nlen = buf2rx(transfer->rx_buf,transfer->len,spi_imx);
            //trace_printk("   transfer_rx wake   nlen:%d\n",nlen);
-           if(nlen>0) return nlen;
-	init_completion(&spi_imx->xfer_done);
+           if(nlen>0) break;
 	}
 	}
 	else{
-	  //spi_imx->txin = transfer->len>>2;
+	  //spi_imx->tx_in = transfer->len>>2;
 	  spi_imx->count1 = transfer->len;
-           trace_printk("   set txin: %d    transfer.len:%d\n",spi_imx->txin,transfer->len);
+           //trace_printk("   set tx_in: %d    transfer.len:%d\n",spi_imx->tx_in,transfer->len);
 	
 
         nlen = buf2rx(transfer->rx_buf,transfer->len,spi_imx);
@@ -1211,22 +1141,16 @@ static int spi_imx_transfer_rx(struct spi_device *spi,
 	spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
         for(;;){
            //trace_printk("   transfer_rx wait\n");
-	   wait_for_completion(&spi_imx->xfer_done);
+	   wait_for_completion_killable_timeout(&spi_imx->xfer_done,HZ<<2);
 	   //wait_for_completion_timeout(&spi_imx->xfer_done,3);
            nlen = buf2rx(transfer->rx_buf,transfer->len,spi_imx);
-           trace_printk("   transfer_rx wake   nlen:%d\n",nlen);
-           if(nlen>0) return nlen;
-	init_completion(&spi_imx->xfer_done);
+           //trace_printk("   transfer_rx wake   nlen:%d\n",nlen);
+           if(nlen>0) break;
 	}
 
 	}
-	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR | MXC_INT_TE);
-	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
-	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 
-	//wait_for_completion(&spi_imx->xfer_done);
-	//clk_disable(spi_imx->clk);
-
+	//traceArray(spi_imx,sizeof(struct spi_imx_data) >> 2);
 	return transfer->len;
 }
 static int spi_imx_transfer(struct spi_device *spi,
@@ -1237,7 +1161,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	bpw = transfer ? transfer->bits_per_word : 32;
         bpw &= 0x0ff;
 
-        if(spi_imx->rxonly) spi_imx_transfer_rx(spi,transfer);
+        //if(spi_imx->rxonly) spi_imx_transfer_rx(spi,transfer);
         
         //printk("dbgdbg _transfer \n");
 
@@ -1250,7 +1174,7 @@ static int spi_imx_transfer(struct spi_device *spi,
         tx2buf(transfer->tx_buf,transfer->len,spi_imx);
         if( 0x0ff == bpw ) return transfer->len;
 
-	spi_imx->count = (SPI_BUF_MASK32 & (SPI_BUF_LEN32+spi_imx->txin-spi_imx->txout))<<2;
+	spi_imx->count = (SPI_BUF_MASK32 & (SPI_BUF_LEN32+spi_imx->tx_in-spi_imx->tx_out))<<2;
         //printk("  transfer count: %d \n",spi_imx->count);
 
 	init_completion(&spi_imx->xfer_done);
@@ -1261,7 +1185,7 @@ static int spi_imx_transfer(struct spi_device *spi,
 	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_RR);
 	//spi_imx->devtype_data.intctrl(spi_imx, MXC_INT_TE);
 
-	wait_for_completion_timeout(&spi_imx->xfer_done,3);
+	wait_for_completion_killable_timeout(&spi_imx->xfer_done,HZ<<2);
 	//clk_disable(spi_imx->clk);
 
 	return transfer->len;
@@ -1374,12 +1298,16 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
         spi_imx->tx_buf = gptx[master->bus_num];
         spi_imx->rx_buf = gprx[master->bus_num];
         spi_imx->rxin = 0;
-        spi_imx->txin = 0;
+        spi_imx->tx_in = 0;
         spi_imx->rxout = 0;
-        spi_imx->txout = 0;
+        spi_imx->tx_out = 0;
         spi_imx->count = 0;
         spi_imx->newCount = 0;
 	spi_imx->newConfig=0;
+	spi_imx->bus_num = master->bus_num;
+	spi_imx->flag_55 = 0x55555555;
+	spi_imx->flag_aa = 0xaaaaaaaa;
+	spi_imx->flag_55aa = 0x55aaaa55;
 
         spi_imx->txfifo = 0;// <== func.__transfer()   init
 
@@ -1408,6 +1336,10 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	spi_imx->bitbang.master->setup = spi_imx_setup;
 	spi_imx->bitbang.master->cleanup = spi_imx_cleanup;
 	spi_imx->bitbang.master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;
+	if(master->bus_num==1) {
+	  spi_imx->bitbang.setup_transfer = spi_imx_setupxfer_rx;
+	  spi_imx->bitbang.txrx_bufs = spi_imx_transfer_rx;
+	}
 
 	init_completion(&spi_imx->xfer_done);
 
@@ -1450,9 +1382,9 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 		goto out_iounmap;
 	}
 
-	ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
-	//if(master->bus_num != 1) ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
-	//else ret = request_irq(spi_imx->irq, spi_imx_isr_rx, 0, DRIVER_NAME_RX, spi_imx);////////////////////// rx only spi
+	//ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
+	if(master->bus_num != 1) ret = request_irq(spi_imx->irq, spi_imx_isr, 0, DRIVER_NAME, spi_imx);
+	else ret = request_irq(spi_imx->irq, spi_imx_isr_rx, 0, DRIVER_NAME_RX, spi_imx);////////////////////// rx only spi
 	if (ret) {
 		dev_err(&pdev->dev, "can't get irq%d: %d\n", spi_imx->irq, ret);
 		goto out_iounmap;

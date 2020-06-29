@@ -97,6 +97,8 @@ struct spi_imx_data {
 	unsigned int txfifo; /* number of words pushed in tx FIFO */
 
 	struct spi_imx_devtype_data devtype_data;
+       
+        int rdy;
 };
 
 #define MXC_SPI_BUF_RX(type)						\
@@ -264,13 +266,13 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 	ctrl |= SPI_IMX2_3_CTRL_MODE_MASK;
 
 	/* set clock speed */
-	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz);
+	ctrl |= spi_imx2_3_clkdiv(spi_imx->spi_clk, config->speed_hz<<2);
 
 	/* set chip select to use */
 	ctrl |= SPI_IMX2_3_CTRL_CS(config->cs);
 
 	//ctrl |= (config->bpw - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
-	ctrl |= (0x1000 - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
+	ctrl |= (0x800 - 1) << SPI_IMX2_3_CTRL_BL_OFFSET;
 
 	cfg |= SPI_IMX2_3_CONFIG_SBBCTRL(config->cs);
 
@@ -283,7 +285,12 @@ static int __maybe_unused spi_imx2_3_config(struct spi_imx_data *spi_imx,
 
 	if (config->mode & SPI_CS_HIGH)
 		cfg |= SPI_IMX2_3_CONFIG_SSBPOL(config->cs);
-
+#if 1
+        if(spi_imx->rdy>0){
+	  ctrl &= ~0x00030000;
+	  ctrl |=  0x00020000;//low level   rdy
+	}
+#endif
 	writel(ctrl, spi_imx->base + SPI_IMX2_3_CTRL);
 	writel(cfg, spi_imx->base + SPI_IMX2_3_CONFIG);
 
@@ -648,6 +655,37 @@ static irqreturn_t spi_imx_isr(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+static irqreturn_t spi_imx_isr2(int irq, void *dev_id)
+{
+	struct spi_imx_data *spi_imx = dev_id;
+	int nr=0;
+
+	while (spi_imx->devtype_data.rx_available(spi_imx)) {
+		spi_imx->rx(spi_imx);
+		spi_imx->txfifo--;
+		nr=1;
+	}
+	if(nr) complete(&spi_imx->xfer_done);
+
+	if (spi_imx->count) {
+		spi_imx_push(spi_imx);
+		return IRQ_HANDLED;
+	}
+
+	if (spi_imx->txfifo) {
+		/* No data left to push, but still waiting for rx data,
+		 * enable receive data available interrupt.
+		 */
+		spi_imx->devtype_data.intctrl(
+				spi_imx, MXC_INT_RR);
+		return IRQ_HANDLED;
+	}
+
+	spi_imx->devtype_data.intctrl(spi_imx, 0);
+	//complete(&spi_imx->xfer_done);
+
+	return IRQ_HANDLED;
+}
 
 static int spi_imx_setupxfer(struct spi_device *spi,
 				 struct spi_transfer *t)
@@ -672,6 +710,7 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		config.speed_hz = spi->max_speed_hz;
 
 	/* Initialize the functions for transfer */
+#if 0
 	if (config.bpw <= 8) {
 		spi_imx->rx = spi_imx_buf_rx_u8;
 		spi_imx->tx = spi_imx_buf_tx_u8;
@@ -683,6 +722,9 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		spi_imx->tx = spi_imx_buf_tx_u32;
 	} else
 		BUG();
+#endif
+	spi_imx->rx = spi_imx_buf_rx_u32;
+	spi_imx->tx = spi_imx_buf_tx_u32;
 
 	spi_imx->devtype_data.config(spi_imx, &config);
 	clk_disable(spi_imx->clk);
@@ -798,6 +840,7 @@ static int __devinit spi_imx_probe(struct platform_device *pdev)
 	master->num_chipselect = mxc_platform_info->num_chipselect;
 
 	spi_imx = spi_master_get_devdata(master);
+        spi_imx->rdy=1;// init  ,  fixme
 	spi_imx->bitbang.master = spi_master_get(master);
 	spi_imx->chipselect = mxc_platform_info->chipselect;
 
